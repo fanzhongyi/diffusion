@@ -1,5 +1,7 @@
 FROM mosaicml/pytorch_vision:1.13.1_cu117-python3.10-ubuntu20.04
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 ENV OMP_NUM_THREADS=20
 
 RUN echo "tmpfs /dev/shm tmpfs defaults,size=4g 0 0" >> /etc/fstab \

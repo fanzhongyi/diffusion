@@ -7,7 +7,10 @@ import os
 import random
 from typing import Callable, List, Optional, Sequence, Union
 
+# import backoff
+# import orjson
 import torch
+from composer.utils.dist import get_sampler
 from petrel_client.client import Client
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
@@ -15,7 +18,6 @@ from torchvision import transforms
 from transformers import CLIPTokenizer
 
 from diffusion.datasets.pexels.transforms import LargestCenterSquare
-from composer.utils.dist import get_sampler
 
 # Disable PIL max image size limit
 Image.MAX_IMAGE_PIXELS = None
