@@ -68,7 +68,6 @@ logger:
     host: api.wandb.ai
     token: 30e859c562557e3cb316b5863156a37c09569611
     mode: offline
-
 callbacks:
   speed_monitor:
     _target_: composer.callbacks.speed_monitor.SpeedMonitor

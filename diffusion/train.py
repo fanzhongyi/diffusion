@@ -74,6 +74,7 @@ def train(config: DictConfig) -> None:
                     os.environ["WANDB_API_KEY"] = lg_conf.token
                     os.environ["WANDB_HOST"] = lg_conf.host
                     os.environ["WANDB_MODE"] = lg_conf.mode
+                    del lg_conf.token, lg_conf.host, lg_conf.mode
                     container = OmegaConf.to_container(config, resolve=True, throw_on_missing=True)
                     # use _partial_ so it doesn't try to init everything
                     wandb_logger = hydra.utils.instantiate(lg_conf, _partial_=True)
