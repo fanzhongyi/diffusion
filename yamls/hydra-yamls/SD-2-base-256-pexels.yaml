@@ -13,6 +13,7 @@ algorithms:
     precision: amp_fp16
 model:
   _target_: diffusion.models.models.stable_diffusion_2
+  model_name: /mnt/CV_teamz/pretrained/stable-diffusion-2-1
   pretrained: false
   precomputed_latents: true
   encode_latents_in_fp16: true
@@ -30,7 +31,8 @@ dataset:
     json_list: /mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json
     petrel_conf_path: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     batch_size: ${batch_size}
-    tokenizer_name_or_path: stabilityai/stable-diffusion-2-base
+    tokenizer_name_or_path: /mnt/CV_teamz/pretrained/stable-diffusion-2-1
+    # tokenizer_name_or_path: stabilityai/stable-diffusion-2-base
     caption_drop_prob: 0.0
     resize_size: 256
     drop_last: true
@@ -45,6 +47,7 @@ dataset:
     json_list: /mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json
     petrel_conf_path: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     batch_size: 8
+    tokenizer_name_or_path: /mnt/CV_teamz/pretrained/stable-diffusion-2-1
     resize_size: 256
     prefetch_factor: 4
     num_workers: 8
