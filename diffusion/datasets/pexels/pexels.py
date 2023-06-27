@@ -15,6 +15,7 @@ from torchvision import transforms
 from transformers import CLIPTokenizer
 
 from diffusion.datasets.pexels.transforms import LargestCenterSquare
+from composer.utils.dist import get_sampler
 
 # Disable PIL max image size limit
 Image.MAX_IMAGE_PIXELS = None
@@ -165,7 +166,7 @@ def build_pexels_dataloader(
     dataloader = DataLoader(
         dataset=dataset,
         batch_size=batch_size,
-        sampler=None,
+        sampler=get_sampler(dataset),
         drop_last=drop_last,
         **dataloader_kwargs,
     )
