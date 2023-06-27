@@ -1,8 +1,8 @@
-project: # Insert wandb project name
+project: sd-from-scratch # Insert wandb project name
 batch_size: 2048
 seed: 17
 scale_schedule_ratio: 1.0
-name: # Insert wandb run name
+name: pexels-speed-test # Insert wandb run name
 eval_first: false
 algorithms:
   low_precision_groupnorm:
@@ -31,12 +31,12 @@ dataset:
     petrel_conf_path: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     batch_size: ${batch_size}
     tokenizer_name_or_path: stabilityai/stable-diffusion-2-base
-    caption_drop_prob: 0.1
+    caption_drop_prob: 0.0
     resize_size: 256
     drop_last: true
     shuffle: true
-    prefetch_factor: 2
-    num_workers: 2
+    prefetch_factor: 8
+    num_workers: 8
     persistent_workers: true
     pin_memory: true
   eval_dataset:
@@ -46,10 +46,10 @@ dataset:
     petrel_conf_path: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     batch_size: 8
     resize_size: 256
-    prefetch_factor: 2
-    num_workers: 2
-    persistent_workers: True
-    pin_memory: True
+    prefetch_factor: 4
+    num_workers: 8
+    persistent_workers: true
+    pin_memory: true
 optimizer:
   _target_: torch.optim.AdamW
   lr: 1.0e-4
@@ -65,6 +65,9 @@ logger:
     name: ${name}
     project: ${project}
     group: ${name}
+    host: api.wandb.ai
+    token: 30e859c562557e3cb316b5863156a37c09569611
+    mode: offline
 callbacks:
   speed_monitor:
     _target_: composer.callbacks.speed_monitor.SpeedMonitor
@@ -82,7 +85,7 @@ trainer:
   device: gpu
   max_duration: 550000ba
   eval_interval: 10000ba
-  device_train_microbatch_size: 16
+  device_train_microbatch_size: ~
   run_name: ${name}
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
