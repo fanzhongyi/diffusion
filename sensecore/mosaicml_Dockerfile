@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:23.05-py3
+FROM mosaicml/pytorch_vision:1.13.1_cu117-python3.10-ubuntu20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -11,12 +11,10 @@ RUN echo "tmpfs /dev/shm tmpfs defaults,size=4g 0 0" >> /etc/fstab \
 
 COPY petrel-oss-sdk-2.2.4 /app/petrel-oss
 COPY diffusion /app/diffusion
-COPY xformers /app/xformers
 RUN cd /app/petrel-oss \
     && python setup.py sdist \
     && pip install --no-cache-dir dist/* \
     && rm -rf dist \
-    && pip install -v -U /app/xformers \
     && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -e /app/diffusion
 
 WORKDIR /app/diffusion

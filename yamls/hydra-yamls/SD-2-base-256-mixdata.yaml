@@ -26,14 +26,33 @@ dataset:
   train_batch_size: ${batch_size}
   eval_batch_size: 1024 # Should be 8 per device
   train_dataset:
-    _target_: diffusion.datasets.pexels.pexels_datapipe.build_pexels_dataloader
-    data_path: /mnt/CV_teamz/crawl_data/pexels
-    json_list: /mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json
+    _target_: diffusion.datasets.mix_datapipe.build_mix_dataloader
+    datapipes:
+      pexels:
+        _target_: diffusion.datasets.pexels.ImgDatapipe
+        data_path: /mnt/CV_teamz/crawl_data/pexels
+        json_list: /mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json
+        filter_strategy: ~
+        weight: 0.012
+      laion:
+        _target_: diffusion.datasets.wds.WdsDatapipe
+        data_path: /mnt/CV_550w/LAION5B-clean/afs-laion2b.json
+        filter_strategy: ~
+        weight: 5.3
+      coyo:
+        _target_: diffusion.datasets.wds.WdsDatapipe
+        data_path: /mnt/CV_550w/datasets/afs-coyo.json
+        filter_strategy: ~
+        weight: 2.1
+      cc:
+        _target_: diffusion.datasets.wds.WdsDatapipe
+        data_path: /mnt/CV_550w/datasets/afs-cc-all.json
+        filter_strategy: ~
+        weight: 0.06
     batch_size: ${batch_size}
     petrel_conf: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     tokenizer_name_or_path: /mnt/CV_teamz/pretrained/stable-diffusion-2-1
     # tokenizer_name_or_path: stabilityai/stable-diffusion-2-base
-    filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
     num_workers: 8
@@ -41,14 +60,12 @@ dataset:
     shuffle: true
     drop_last: true
   eval_dataset:
-    _target_: diffusion.datasets.pexels.pexels_datapipe.build_pexels_dataloader
-    data_path: /mnt/CV_teamz/crawl_data/pexels
-    json_list: /mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json
-    batch_size: 2
+    _target_: diffusion.datasets.wds.wds_datapipe.build_wds_dataloader
+    data_path: /mnt/CV_550w/LAION5B-clean/afs-laion2b.json
+    batch_size: 4
     petrel_conf: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     tokenizer_name_or_path: /mnt/CV_teamz/pretrained/stable-diffusion-2-1
     # tokenizer_name_or_path: stabilityai/stable-diffusion-2-base
-    filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
     num_workers: 8
@@ -90,8 +107,11 @@ trainer:
   device: gpu
   max_duration: 550000ba
   eval_interval: 550000ba
-  device_train_microbatch_size: ${batch_size}
+  device_train_microbatch_size: ~
   run_name: ${name}
+  progress_bar: false
+  log_to_console: true
+  log_traces: true
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
   save_folder: # Insert path to save folder or bucket

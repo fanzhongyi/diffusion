@@ -38,6 +38,7 @@ def train(config: DictConfig) -> None:
     train_dataloader: Union[Iterable, DataSpec, Dict[str, Any]] = hydra.utils.instantiate(
         config.dataset.train_dataset,
         batch_size=config.dataset.train_batch_size // dist.get_world_size(),
+        _recursive_=False,
     )
 
     # Composer can take dataloaders, dataspecs, evaluators, or list of evaluators

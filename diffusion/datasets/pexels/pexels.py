@@ -1,14 +1,19 @@
 # Copyright 2022 babyfan
 # SPDX-License-Identifier: Apache-2.0
-"""Pexels dataset."""
+"""Img dataset for individual image files, i.e. Pexels """
+
+# TODO:
+# 1. reimplement the dataset with Datapipe for better controller
+# 2. replace json with orjson for speedup
+# 3. add filter strategy
+# 4. optimizing
 
 import json
 import os
 import random
-from typing import Callable, List, Optional, Sequence, Union
+from typing import Optional
 
-# import backoff
-# import orjson
+import backoff
 import torch
 from composer.utils.dist import get_sampler
 from petrel_client.client import Client
@@ -18,6 +23,8 @@ from torchvision import transforms
 from transformers import CLIPTokenizer
 
 from diffusion.datasets.pexels.transforms import LargestCenterSquare
+
+# import orjson
 
 # Disable PIL max image size limit
 Image.MAX_IMAGE_PIXELS = None
@@ -33,6 +40,7 @@ class PexelsDataset(Dataset):
         json_list,
         caption_drop_prob,
         client,
+        filter_fn=None,
     ):
 
         self.transform = transform
@@ -42,17 +50,15 @@ class PexelsDataset(Dataset):
         self.caption_drop_prob = caption_drop_prob
 
         self.client = client
+        self.filter_fn = filter_fn
 
-        self.json_list = json.load(open(json_list))
         self.files = []
-        for js in self.json_list:
-            dic = json.load(open(js))
-            for value in dic.values():
-                sample = {
-                    'json': value,
-                    'img': value['img_params']['local_paths'][0],
-                }
-                self.files.append(sample)
+        for js in json.load(open(json_list)):
+            sublist = json.load(open(js)).values()
+            # once read in, start filtering, reduce load
+            if filter_fn is not None:
+                sublist = list(filter(filter_fn, sublist))
+            self.files.extend(sublist)
 
     def __len__(self):
         return len(self.files)
@@ -61,37 +67,38 @@ class PexelsDataset(Dataset):
         sample = self.files[index]
 
         # process img
-        img_paths = sample['json']['img_params']['local_paths']
+        img_paths = sample['img_params']['local_paths']
         img_path = random.choice(img_paths)
 
-        local_img_path = os.path.join(self.img_dataset_prefix, img_path)
-        if os.path.exists(local_img_path):
-            img = Image.open(local_img_path).convert("RGB")
+        img_path_local = os.path.join(self.img_dataset_prefix, img_path)
+        if os.path.exists(img_path_local):
+            img = Image.open(img_path_local)
         else:
-            if 's3' not in sample['json']['img_params']:
-                raise KeyError(f"s3 not in the json {sample['json']}")
+            assert 's3' in sample['img_params']
+            img_s3_path = os.path.join(sample['img_params']['s3'], img_path)
+            try:
+                img = self.load_image(img_s3_path)
+            except Exception as e:
+                print(f"Cannot load {img_s3_path=}. Ignore {e}. Return None.")
+                return None
 
-            img_path = os.path.join(sample['json']['img_params']['s3'],
-                                    img_path)
-            # TODO: need backoff due to network requests.
-            stream = self.client.get(img_path, enable_stream=True)
-            img = Image.open(stream)
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
 
         if self.transform is not None:
             img = self.transform(img)
 
         # process txt
         try:
-            prompts = sample['json']['img_params']['text_prompts']
+            prompts = sample['img_params']['text_prompts']
         except:
-            prompts = sample['json']['user_input']['text_prompts']
+            prompts = sample['user_input']['text_prompts']
 
         prompt = random.choice(prompts) if isinstance(
             prompts, list) and len(prompts) > 0 else ''
 
-        tags = sample["json"]["img_params"]["tags"]
+        # NOTE: pexels datasets need to add labels as auxiliary inputs
+        tags = sample.get("img_params", {}).get("tags", [])
         if len(tags) > 5:
             tags = random.sample(tags, 5)
 
@@ -109,6 +116,12 @@ class PexelsDataset(Dataset):
         tokenized_caption = torch.tensor(tokenized_caption)
         out = {'image': img, 'captions': tokenized_caption}
         return out
+
+    @backoff.on_exception(backoff.expo, Exception, max_tries=3, max_time=10)
+    def load_image(self, img_path):
+        stream = self.client.get(img_path, enable_stream=True)
+        img = Image.open(stream)
+        return img
 
 
 def build_pexels_dataloader(
@@ -131,12 +144,7 @@ def build_pexels_dataloader(
         caption_drop_prob (float): The probability of dropping a caption. Default: ``0.0``.
         resize_size (int): The size to resize the image to. Default: ``256``.
         num_samples (Optional[int]): The number of samples to use. Default: ``None`` uses all available samples.
-        predownload (Optional[int]): The number of samples to prefetch. Default: ``100_000``.
-        download_retry (Optional[int]): The number of times to retry a download. Default: ``2``.
-        download_timeout (Optional[float]): The timeout for a download. Default: ``120``.
         drop_last (bool): Whether to drop the last batch if it is incomplete. Default: ``True``.
-        shuffle (bool): Whether to shuffle the samples in this dataset. Default: ``True``.
-        num_canonical_nodes (int, optional): The number of canonical nodes for shuffle. Default: ``None``.
         **dataloader_kwargs: Additional arguments to pass to the dataloader.
     """
 
