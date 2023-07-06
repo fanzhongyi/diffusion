@@ -165,6 +165,7 @@ def build_pexels_dataloader(
     tokenizer_name_or_path: str = 'stabilityai/stable-diffusion-2-base',
     filter_strategy: Optional[str] = None,
     caption_drop_prob: float = 0.0,
+    filter_strategy: str = '',
     resize_size: int = 256,
     num_workers: int = 4,
     prefetch_count: int = 4,
