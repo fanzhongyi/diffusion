@@ -116,6 +116,7 @@ def ImgDatapipe(
     tokenizer=None,
     client=None,
     filter_strategy=None,
+    shuffle_buffer_size=5000,
 ):
 
     files = []
@@ -129,7 +130,7 @@ def ImgDatapipe(
             open(filter_strategy)) if filter_strategy else None
         dp = dp.filter(partial(filter_fn, filter_strategy=filter_strategy))
 
-    dp = dp.shuffle(buffer_size=10000)
+    dp = dp.shuffle(buffer_size=shuffle_buffer_size)
 
     if dist.is_initialized():
         dp = dp.sharding_filter(SHARDING_PRIORITIES.MULTIPROCESSING)

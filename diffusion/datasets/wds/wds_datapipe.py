@@ -112,12 +112,15 @@ def WdsDatapipe(
     tokenizer=None,
     client=None,
     filter_strategy=None,
+    shuffle_buffer_size=5000,
 ):
 
     input_shards = load_shards(data_path, template='{}')
     # print(input_shards[:10], len(input_shards))
     dp = IterableWrapper(input_shards)
     # dp = FileLister(data_path, '*.new.tar')
+
+    dp = dp.shuffle(buffer_size=shuffle_buffer_size)
 
     dp = FileOpener(dp, mode='b')
     dp = dp.load_from_tar()
@@ -130,7 +133,7 @@ def WdsDatapipe(
             open(filter_strategy)) if filter_strategy else None
         dp = dp.filter(partial(filter_fn, filter_strategy=filter_strategy))
 
-    dp = dp.shuffle(buffer_size=10000)
+    dp = dp.shuffle(buffer_size=shuffle_buffer_size)
 
     if dist.is_initialized():
         dp = dp.sharding_filter(SHARDING_PRIORITIES.MULTIPROCESSING)

@@ -36,7 +36,7 @@ dataset:
     filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
-    num_workers: 8
+    num_workers: 2
     prefetch_count: 8
     shuffle: true
     drop_last: true
@@ -51,7 +51,7 @@ dataset:
     filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
-    num_workers: 8
+    num_workers: 2
     prefetch_count: 8
     shuffle: true
     drop_last: true
