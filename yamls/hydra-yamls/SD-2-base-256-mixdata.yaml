@@ -53,6 +53,7 @@ dataset:
     petrel_conf: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     tokenizer_name_or_path: /mnt/CV_teamz/pretrained/stable-diffusion-2-1
     # tokenizer_name_or_path: stabilityai/stable-diffusion-2-base
+    filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
     num_workers: 8
@@ -67,6 +68,7 @@ dataset:
     petrel_conf: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     tokenizer_name_or_path: /mnt/CV_teamz/pretrained/stable-diffusion-2-1
     # tokenizer_name_or_path: stabilityai/stable-diffusion-2-base
+    filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
     num_workers: 8
@@ -110,8 +112,8 @@ trainer:
   eval_interval: 550000ba
   device_train_microbatch_size: ~
   run_name: ${name}
-  progress_bar: false
-  log_to_console: true
+  progress_bar: true
+  log_to_console: false
   log_traces: false
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}

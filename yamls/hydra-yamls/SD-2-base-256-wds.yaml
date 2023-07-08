@@ -90,8 +90,8 @@ trainer:
   eval_interval: 550000ba
   device_train_microbatch_size: ~
   run_name: ${name}
-  progress_bar: false
-  log_to_console: true
+  progress_bar: true
+  log_to_console: false
   log_traces: false
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}

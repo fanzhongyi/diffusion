@@ -33,7 +33,7 @@ def build_mix_dataloader(
     prefetch_count: int = 4,
     shuffle: bool = True,
     drop_last: bool = True,
-    seed: bool = -1,
+    seed: int = -1,
 ):
     """ Building a tar format dataset (Webdataset).
 
