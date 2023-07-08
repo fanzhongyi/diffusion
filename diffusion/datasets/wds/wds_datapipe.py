@@ -88,13 +88,26 @@ def filter_no_caption_or_no_image(sample):
     return has_caption and has_image and has_json
 
 
+def filter_demanged_image(sample):
+    for ext in ['.jpg', '.png', '.jpeg', '.webp']:
+        if ext in sample:
+            return sample[ext] is not None
+    else:
+        print(sample.keys())
+        return False
+
+
 def decode(item):
     key, value = item
     if key.endswith('.json'):
         return key, json.loads(value.read())
     if key.endswith('.jpg') or key.endswith('.png') or key.endswith(
             '.jpeg') or key.endswith('webp'):
-        return key, Image.open(value).convert('RGB')
+        try:
+            img = Image.open(value).convert('RGB')
+        except Exception:
+            img = None
+        return key, img
     if key.endswith('.txt'):
         return key, value.read().decode('utf-8')
 
@@ -128,6 +141,7 @@ def WdsDatapipe(
     dp = dp.map(decode)
     dp = dp.webdataset()
     dp = dp.filter(filter_no_caption_or_no_image)
+    dp = dp.filter(filter_demanged_image)
 
     if filter_strategy is not None:
         filter_strategy = json.load(
