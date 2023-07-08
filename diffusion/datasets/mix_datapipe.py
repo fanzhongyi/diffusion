@@ -33,6 +33,7 @@ def build_mix_dataloader(
     prefetch_count: int = 4,
     shuffle: bool = True,
     drop_last: bool = True,
+    seed: bool = -1,
 ):
     """ Building a tar format dataset (Webdataset).
 
@@ -49,6 +50,7 @@ def build_mix_dataloader(
         prefetch_count (int): the prefetch_count in data loading graph.
         shuffle (bool): Shuffle or not.
         drop_last (bool): Whether to drop the last batch if it is incomplete. Default: ``True``.
+        seed (int): the random seed for multiple data source mixture.
     """
     pprint(datapipes)
 
@@ -85,7 +87,7 @@ def build_mix_dataloader(
         sampling_weight[datapipe] = weight
         print(f'Init data source:\t{dp_name=}\t{weight=}')
 
-    dp = SampleMultiplexer(pipes_to_weights_dict=sampling_weight, seed=0)
+    dp = SampleMultiplexer(pipes_to_weights_dict=sampling_weight, seed=seed)
 
     dp = dp.batch(batch_size=batch_size, drop_last=drop_last)
 

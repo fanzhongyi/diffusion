@@ -59,6 +59,7 @@ dataset:
     prefetch_count: 8
     shuffle: true
     drop_last: true
+    seed: ${seed}
   eval_dataset:
     _target_: diffusion.datasets.wds.wds_datapipe.build_wds_dataloader
     data_path: /mnt/CV_550w/LAION5B-clean/afs-laion2b.json

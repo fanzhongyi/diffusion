@@ -8,13 +8,13 @@ from functools import partial
 from pprint import pprint
 from typing import Optional
 
+import backoff
 import torch
 import torch.distributed as dist
 from petrel_client.client import Client
 from PIL import Image
 from torch.utils.data.datapipes.iter.sharding import SHARDING_PRIORITIES
-from torchdata.dataloader2 import (DataLoader2, DistributedReadingService,
-                                   MultiProcessingReadingService,
+from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, MultiProcessingReadingService,
                                    SequentialReadingService)
 from torchdata.dataloader2.adapter import CacheTimeout, Shuffle
 from torchdata.datapipes.iter import Batcher, Collator, FileLister, FileOpener, IterableWrapper, ShardingFilter
