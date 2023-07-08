@@ -63,7 +63,7 @@ scheduler:
   _target_: composer.optim.MultiStepWithWarmupScheduler
   t_warmup: 10000ba
   milestones:
-    - 200ep
+    - 20000ba
 # logger:
 #   wandb:
 #     _target_: composer.loggers.wandb_logger.WandBLogger
@@ -90,8 +90,11 @@ trainer:
   device: gpu
   max_duration: 550000ba
   eval_interval: 550000ba
-  device_train_microbatch_size: ${batch_size}
+  device_train_microbatch_size: ~
   run_name: ${name}
+  progress_bar: false
+  log_to_console: true
+  log_traces: false
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
   save_folder: # Insert path to save folder or bucket
