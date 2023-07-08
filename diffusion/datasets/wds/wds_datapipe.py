@@ -12,7 +12,7 @@ import backoff
 import torch
 import torch.distributed as dist
 from petrel_client.client import Client
-from PIL import Image
+from PIL import Image, ImageFile
 from torch.utils.data.datapipes.iter.sharding import SHARDING_PRIORITIES
 from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, MultiProcessingReadingService,
                                    SequentialReadingService)
@@ -29,6 +29,7 @@ from .utils import filter_fn
 
 # Disable PIL max image size limit
 Image.MAX_IMAGE_PIXELS = None
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 def load_shards(file_path: str, template: str = '{}'):
