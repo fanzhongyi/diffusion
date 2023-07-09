@@ -14,7 +14,8 @@ import torch.distributed as dist
 from petrel_client.client import Client
 from PIL import Image, ImageFile
 from torch.utils.data.datapipes.iter.sharding import SHARDING_PRIORITIES
-from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, MultiProcessingReadingService,
+from torchdata.dataloader2 import (DataLoader2, DistributedReadingService,
+                                   MultiProcessingReadingService,
                                    SequentialReadingService)
 from torchdata.dataloader2.adapter import CacheTimeout, Shuffle
 from torchdata.datapipes.iter import Batcher, Collator, FileLister, FileOpener, IterableWrapper, ShardingFilter
@@ -67,7 +68,7 @@ def rename_key(sample):
     for ext in ['.jpg', '.png', '.jpeg', '.webp']:
         if ext in sample:
             return {
-                # '__key__': sample['__key__'],
+                '__key__': sample['__key__'],
                 'image': sample[ext],
                 'text': sample['.txt'],
                 'json': sample['.json'],
@@ -78,38 +79,34 @@ def rename_key(sample):
 
 
 def filter_no_caption_or_no_image(sample):
-    has_caption = ('.txt' in sample)
-    has_image = ('.png' in sample or '.jpg' in sample or '.jpeg' in sample or
-                 '.webp' in sample)
-    has_json = ('.json' in sample)
+    has_caption = ('text' in sample)
+    has_image = ('image' in sample)
+    has_json = ('json' in sample)
     # print(f'{len(sample.keys())}, {sample.keys()}')
     if has_caption and has_image and not has_json:
         print(f'{sample=} no json loaded, ignore')
     return has_caption and has_image and has_json
 
 
-def filter_demanged_image(sample):
-    for ext in ['.jpg', '.png', '.jpeg', '.webp']:
-        if ext in sample:
-            return sample[ext] is not None
-    else:
-        print(sample.keys())
-        return False
+def decode(sample):
+    sample_decoded = {'__key__': sample['__key__']}
 
+    try:
+        sample_decoded['json'] = json.loads(sample['json'].read())
+    except Exception:
+        print(f'json parse error, {sample=}')
 
-def decode(item):
-    key, value = item
-    if key.endswith('.json'):
-        return key, json.loads(value.read())
-    if key.endswith('.jpg') or key.endswith('.png') or key.endswith(
-            '.jpeg') or key.endswith('webp'):
-        try:
-            img = Image.open(value).convert('RGB')
-        except Exception:
-            img = None
-        return key, img
-    if key.endswith('.txt'):
-        return key, value.read().decode('utf-8')
+    try:
+        sample_decoded['text'] = sample['text'].read().decode('utf-8')
+    except Exception:
+        print(f'text parse error, {sample=}')
+
+    try:
+        sample_decoded['image'] = Image.open(sample['image']).convert('RGB')
+    except Exception:
+        print(f'image parse error, {sample=}')
+
+    return sample_decoded
 
 
 def select(sample):
@@ -138,10 +135,11 @@ def WdsDatapipe(
 
     dp = FileOpener(dp, mode='b')
     dp = dp.load_from_tar()
-    dp = dp.map(decode)
     dp = dp.webdataset()
+
+    dp = dp.map(rename_key)
+    dp = dp.map(decode)
     dp = dp.filter(filter_no_caption_or_no_image)
-    dp = dp.filter(filter_demanged_image)
 
     if filter_strategy is not None:
         filter_strategy = json.load(
@@ -156,8 +154,6 @@ def WdsDatapipe(
         # dp = dp.sharding_round_robin_dispatch(
         #     SHARDING_PRIORITIES.MULTIPROCESSING)
         dp.apply_sharding(dist.get_world_size(), dist.get_rank())
-
-    dp = dp.map(rename_key)
 
     if img_transform is not None:
         dp = dp.map(img_transform, input_col='image', output_col='image')
