@@ -14,8 +14,7 @@ import torch.distributed as dist
 from petrel_client.client import Client
 from PIL import Image, ImageFile
 from torch.utils.data.datapipes.iter.sharding import SHARDING_PRIORITIES
-from torchdata.dataloader2 import (DataLoader2, DistributedReadingService,
-                                   MultiProcessingReadingService,
+from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, MultiProcessingReadingService,
                                    SequentialReadingService)
 from torchdata.dataloader2.adapter import CacheTimeout, Shuffle
 from torchdata.datapipes.iter import Batcher, Collator, FileLister, FileOpener, IterableWrapper, ShardingFilter
@@ -150,10 +149,10 @@ def WdsDatapipe(
 
     if dist.is_initialized():
         dp = dp.sharding_filter(SHARDING_PRIORITIES.MULTIPROCESSING)
+        dp.apply_sharding(dist.get_world_size(), dist.get_rank())
         # NOTE: This will mark the pipeline above as non-replicable
         # dp = dp.sharding_round_robin_dispatch(
         #     SHARDING_PRIORITIES.MULTIPROCESSING)
-        dp.apply_sharding(dist.get_world_size(), dist.get_rank())
 
     if img_transform is not None:
         dp = dp.map(img_transform, input_col='image', output_col='image')
@@ -229,6 +228,8 @@ def build_wds_dataloader(
 
     dp = dp.prefetch(prefetch_count)
 
+    dp = dp.pin_memory()
+
     mp_rs = MultiProcessingReadingService(num_workers=num_workers)
     if dist.is_initialized():
         dist_rs = DistributedReadingService()
@@ -238,10 +239,7 @@ def build_wds_dataloader(
 
     dl = DataLoader2(
         dp,
-        datapipe_adapter_fn=[
-            Shuffle(shuffle),
-            # CacheTimeout(600),
-        ],
+        datapipe_adapter_fn=[Shuffle(shuffle)],
         reading_service=rs,
     )
     dl.batch_size = batch_size

@@ -220,6 +220,8 @@ def build_pexels_dataloader(
 
     dp = dp.prefetch(prefetch_count)
 
+    dp = dp.pin_memory()
+
     mp_rs = MultiProcessingReadingService(num_workers=num_workers)
     if dist.is_initialized():
         dist_rs = DistributedReadingService()
@@ -229,10 +231,7 @@ def build_pexels_dataloader(
 
     dl = DataLoader2(
         dp,
-        datapipe_adapter_fn=[
-            Shuffle(shuffle),
-            # CacheTimeout(600),
-        ],
+        datapipe_adapter_fn=[Shuffle(shuffle)],
         reading_service=rs,
     )
     dl.batch_size = batch_size
