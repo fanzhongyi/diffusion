@@ -100,9 +100,9 @@ def build_mix_dataloader(
 
     dp = dp.pin_memory()
 
-    # from torchdata.datapipes.utils import to_graph
-    # g = to_graph(dp, debug=True)
-    # g.render('datapipes_viewlization')
+    from torchdata.datapipes.utils import to_graph
+    g = to_graph(dp, debug=True)
+    g.render('datapipes')
 
     mp_rs = MultiProcessingReadingService(num_workers=num_workers)
     if dist.is_initialized():

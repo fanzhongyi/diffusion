@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1
 RUN echo "tmpfs /dev/shm tmpfs defaults,size=20g 0 0" >> /etc/fstab \
     && echo "tmpfs /mem_fs tmpfs defaults,size=30g 0 0" >> /etc/fstab \
     && apt-get update \
-    && apt-get -y install pdsh vim \
+    && apt-get -y install pdsh vim graphviz \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /tmp/*
@@ -24,6 +24,7 @@ RUN pip install --upgrade pip \
     && pip install --no-cache-dir dist/* \
     && rm -rf dist \
     && pip uninstall -y pillow && pip install pillow-simd \
+    && pip install ipdb \
     && pip install -v -U /app/xformers \
     && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -e /app/diffusion
 
