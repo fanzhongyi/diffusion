@@ -102,13 +102,6 @@ def load_caption(sample, caption_drop_prob, tokenizer):
     return sample
 
 
-def select(sample):
-    return {
-        'image': sample['image'],
-        'captions': sample['captions'],
-    }
-
-
 def ImgDatapipe(
     data_path,
     json_list,
@@ -153,7 +146,7 @@ def ImgDatapipe(
                     caption_drop_prob=caption_drop_prob,
                     tokenizer=tokenizer))
 
-    dp = dp.map(select)
+    dp = dp.slice(['image', 'captions'])
     return dp
 
 
@@ -170,6 +163,7 @@ def build_pexels_dataloader(
     prefetch_count: int = 4,
     shuffle: bool = True,
     drop_last: bool = True,
+    seed: int = -1,
 ):
     """ Building a image dataset (Pexels/ Midjourney).
 
@@ -186,6 +180,7 @@ def build_pexels_dataloader(
         prefetch_count (int): the prefetch_count in data loading graph.
         shuffle (bool): Shuffle or not.
         drop_last (bool): Whether to drop the last batch if it is incomplete. Default: ``True``.
+        seed (int): the random seed for multiple data source mixture.
     """
 
     # Create a client for s3 remote access
@@ -235,6 +230,7 @@ def build_pexels_dataloader(
         reading_service=rs,
     )
     dl.batch_size = batch_size
+    dl.seed(seed)
 
     # for obj in dl:
     #     __import__('ipdb').set_trace()

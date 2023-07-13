@@ -108,13 +108,6 @@ def decode(sample):
     return sample_decoded
 
 
-def select(sample):
-    return {
-        'image': sample['image'],
-        'captions': sample['captions'],
-    }
-
-
 def WdsDatapipe(
     data_path='/mnt/sdd6/fanzhongyi1/datasets/laion/',
     img_transform=None,
@@ -164,7 +157,7 @@ def WdsDatapipe(
                     input_col='text',
                     output_col='captions')
 
-    dp = dp.map(select)
+    dp = dp.slice(['image', 'captions'])
     return dp
 
 
@@ -180,6 +173,7 @@ def build_wds_dataloader(
     prefetch_count: int = 4,
     shuffle: bool = True,
     drop_last: bool = True,
+    seed: int = -1,
 ):
     """ Building a tar format dataset (Webdataset).
 
@@ -195,6 +189,7 @@ def build_wds_dataloader(
         prefetch_count (int): the prefetch_count in data loading graph.
         shuffle (bool): Shuffle or not.
         drop_last (bool): Whether to drop the last batch if it is incomplete. Default: ``True``.
+        seed (int): the random seed for multiple data source mixture.
     """
 
     # Create a client for s3 remote access
@@ -243,6 +238,7 @@ def build_wds_dataloader(
         reading_service=rs,
     )
     dl.batch_size = batch_size
+    dl.seed(seed)
 
     # for obj in dl:
     #     __import__('ipdb').set_trace()

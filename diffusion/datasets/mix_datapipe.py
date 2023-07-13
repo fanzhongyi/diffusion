@@ -116,6 +116,7 @@ def build_mix_dataloader(
         datapipe_adapter_fn=[Shuffle(shuffle)],
         reading_service=rs,
     )
+    dl.seed(seed)
     dl.batch_size = batch_size
 
     # for obj in dl:
