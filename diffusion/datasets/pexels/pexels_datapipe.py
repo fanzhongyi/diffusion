@@ -11,7 +11,6 @@ import json
 import os
 import random
 from functools import partial
-from pprint import pprint
 from typing import Optional
 
 import backoff
@@ -22,8 +21,8 @@ from PIL import Image, ImageFile
 from torch.utils.data.datapipes.iter.sharding import SHARDING_PRIORITIES
 from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, MultiProcessingReadingService,
                                    SequentialReadingService)
-from torchdata.dataloader2.adapter import CacheTimeout, Shuffle
-from torchdata.datapipes.iter import Batcher, Collator, FileLister, FileOpener, IterableWrapper, Mapper, ShardingFilter
+from torchdata.dataloader2.adapter import Shuffle
+from torchdata.datapipes.iter import IterableWrapper
 from torchvision import transforms
 from transformers import CLIPTokenizer
 
@@ -234,8 +233,8 @@ def build_pexels_dataloader(
 
     # for obj in dl:
     #     __import__('ipdb').set_trace()
-    #     pprint(obj)
-    #     pprint(type(obj))
+    #     __import__('pprint').pprint(obj)
+    #     __import__('pprint').pprint(type(obj))
 
     return dl
 

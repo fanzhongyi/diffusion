@@ -2,19 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 '''Unified mix datapipe for multiple data source.'''
 
-import json
-import os
-from functools import partial
-from pprint import pprint
-
 import hydra
 import torch.distributed as dist
+from omegaconf import OmegaConf
 from petrel_client.client import Client
 from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, MultiProcessingReadingService,
                                    SequentialReadingService)
-from torchdata.dataloader2.adapter import CacheTimeout, Shuffle
-from torchdata.datapipes.iter import (Batcher, Collator, FileLister, FileOpener, IterableWrapper, SampleMultiplexer,
-                                      ShardingFilter)
+from torchdata.dataloader2.adapter import Shuffle
+from torchdata.datapipes.iter import SampleMultiplexer
 from torchvision import transforms
 from transformers import CLIPTokenizer
 
@@ -52,7 +47,7 @@ def build_mix_dataloader(
         drop_last (bool): Whether to drop the last batch if it is incomplete. Default: ``True``.
         seed (int): the random seed for multiple data source mixture.
     """
-    pprint(datapipes)
+    print(f"DATAPIPE INFO -->\n{OmegaConf.to_yaml(datapipes)}")
 
     # Create a client for s3 remote access
     client = Client(petrel_conf)
@@ -121,7 +116,7 @@ def build_mix_dataloader(
 
     # for obj in dl:
     #     __import__('ipdb').set_trace()
-    #     pprint(obj)
-    #     pprint(type(obj))
+    #     __import__('pprint').pprint(obj)
+    #     __import__('pprint').pprint(type(obj))
 
     return dl
