@@ -28,7 +28,9 @@ def train(config: DictConfig) -> None:
     """
     reproducibility.seed_all(config['seed'])
 
-    model: ComposerModel = hydra.utils.instantiate(config.model)
+    tokenizer = hydra.utils.instantiate(config.tokenizer)
+
+    model: ComposerModel = hydra.utils.instantiate(config.model, tokenizer=tokenizer)
 
     optimizer = hydra.utils.instantiate(config.optimizer, params=model.parameters())
 
@@ -38,6 +40,7 @@ def train(config: DictConfig) -> None:
     train_dataloader: Union[Iterable, DataSpec, Dict[str, Any]] = hydra.utils.instantiate(
         config.dataset.train_dataset,
         batch_size=config.dataset.train_batch_size // dist.get_world_size(),
+        tokenizer=tokenizer,
         _recursive_=False,
     )
 
@@ -51,7 +54,9 @@ def train(config: DictConfig) -> None:
             print(OmegaConf.to_yaml(eval_conf))
             eval_dataloader = hydra.utils.instantiate(
                 eval_conf.eval_dataset,
-                config.dataset.eval_batch_size // dist.get_world_size(),
+                batch_size=config.dataset.eval_batch_size // dist.get_world_size(),
+                tokenizer=tokenizer,
+                _recursive_=False,
             )
             evaluator = hydra.utils.instantiate(eval_conf.evaluator, dataloader=eval_dataloader)
             evaluators.append(evaluator)
@@ -59,8 +64,12 @@ def train(config: DictConfig) -> None:
         eval_set = evaluators
 
     else:
-        eval_set = hydra.utils.instantiate(config.dataset.eval_dataset,
-                                           batch_size=config.dataset.eval_batch_size // dist.get_world_size())
+        eval_set = hydra.utils.instantiate(
+            config.dataset.eval_dataset,
+            batch_size=config.dataset.eval_batch_size // dist.get_world_size(),
+            tokenizer=tokenizer,
+            _recursive_=False,
+        )
 
     # Build list of loggers, callbacks, and algorithms to pass to trainer
     logger: List[LoggerDestination] = []

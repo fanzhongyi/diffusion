@@ -16,7 +16,6 @@ from typing import Optional
 import backoff
 import torch
 import torch.distributed as dist
-from petrel_client.client import Client
 from PIL import Image, ImageFile
 from torch.utils.data.datapipes.iter.sharding import SHARDING_PRIORITIES
 from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, MultiProcessingReadingService,
@@ -24,8 +23,8 @@ from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, Multi
 from torchdata.dataloader2.adapter import Shuffle
 from torchdata.datapipes.iter import IterableWrapper
 from torchvision import transforms
-from transformers import CLIPTokenizer
 
+from diffusion.datasets.multi_tokenizer import MultiTokenizer
 from diffusion.datasets.pexels.transforms import LargestCenterSquare
 
 from .utils import filter_fn
@@ -69,7 +68,11 @@ def load_image(img_params, transform, data_path, client):
     return img
 
 
-def load_caption(sample, caption_drop_prob, tokenizer):
+def load_caption(
+    sample,
+    caption_drop_prob,
+    tokenizer: MultiTokenizer,
+):
 
     try:
         prompts = sample['img_params']['text_prompts']
@@ -89,15 +92,16 @@ def load_caption(sample, caption_drop_prob, tokenizer):
     if torch.rand(1) < caption_drop_prob:
         caption = ''
 
-    tokenized_caption = tokenizer(
+    # TODO: separate drop probability
+    tokenized_caption = tokenizer.tokenize_with_drop(
         caption,
-        padding='max_length',
-        max_length=tokenizer.model_max_length,
-        truncation=True,
-    )['input_ids']
-    tokenized_caption = torch.tensor(tokenized_caption)
-
-    sample['captions'] = tokenized_caption
+        clip_drop_prob=caption_drop_prob,
+        t5_drop_prob=caption_drop_prob,
+        uni_drop_prob=0.,
+    )
+    sample['captions'] = tokenized_caption['input_clip']
+    sample['captions_t5'] = tokenized_caption['input_t5']
+    sample['mask_t5'] = tokenized_caption['mask_t5']
     return sample
 
 
@@ -145,16 +149,16 @@ def ImgDatapipe(
                     caption_drop_prob=caption_drop_prob,
                     tokenizer=tokenizer))
 
-    dp = dp.slice(['image', 'captions'])
+    dp = dp.slice(['image', 'captions', 'captions_t5', 'mask_t5'])
     return dp
 
 
 def build_pexels_dataloader(
     data_path: str,
     json_list: str,
+    tokenizer: MultiTokenizer,
     batch_size: int = 4,
     petrel_conf: str = '',
-    tokenizer_name_or_path: str = 'stabilityai/stable-diffusion-2-base',
     filter_strategy: Optional[str] = None,
     caption_drop_prob: float = 0.0,
     resize_size: int = 256,
@@ -183,10 +187,8 @@ def build_pexels_dataloader(
     """
 
     # Create a client for s3 remote access
+    from petrel_client.client import Client
     client = Client(petrel_conf)
-
-    tokenizer = CLIPTokenizer.from_pretrained(tokenizer_name_or_path,
-                                              subfolder='tokenizer')
 
     center_square_crop = LargestCenterSquare(resize_size)
     # Normalize from 0 to 1 to -1 to 1
