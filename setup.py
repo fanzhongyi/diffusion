@@ -12,11 +12,14 @@ install_requires = [
     'hydra-colorlog',
     'diffusers[torch]',
     'transformers[torch]',
+    'sentencepiece',
     'wandb',
+    'deepspeed',
     'xformers',
     'triton',
     'torchmetrics[image]',
     'torchdata',
+    'torchinfo',
     'backoff',
     'orjson',
 ]
@@ -28,6 +31,7 @@ extras_require['dev'] = {
     'pytest==7.3.0',
     'coverage[toml]==7.2.2',
     'pyarrow==11.0.0',
+    'ipdb',
 }
 
 extras_require['all'] = set(dep for deps in extras_require.values() for dep in deps)

@@ -15,6 +15,7 @@ from torchmetrics.multimodal.clip_score import CLIPScore
 from diffusion.datasets.multi_tokenizer import MultiTokenizer
 from diffusion.models.multi_text_encoder import MultiTextEncoder
 from diffusion.models.stable_diffusion_3B import StableDiffusion3B
+from torchinfo import summary
 
 try:
     import xformers  # type: ignore
@@ -76,14 +77,17 @@ def stable_diffusion_3B(
 
     if unet_model_config_path is not None:
         unet_config = json.load(open(unet_model_config_path))
+        unet_config['transformer_layers_per_block'] = unet_config.pop('transformer_depth')
         unet = UNet2DConditionModel.from_config(unet_config)
     else:
         unet = UNet2DConditionModel.from_pretrained(model_name,
                                                     subfolder='unet')
+    summary(unet) # type: ignore
 
     mtext_encoder = MultiTextEncoder(
         text_encoders=text_encoders,
-        feature_dim=unet.config['encoder_hid_dim'],
+        feature_dim=unet.config.encoder_hid_dim or
+        unet.config.cross_attention_dim,
         encode_latents_in_fp16=encode_latents_in_fp16,
     )
 

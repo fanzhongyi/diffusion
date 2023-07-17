@@ -39,14 +39,17 @@ class MultiTextEncoder(nn.Module):
         # initlization
         latent_type = torch.float16 if encode_latents_in_fp16 else torch.float
         for name, path in text_encoders.items():
+            print(f'Start Init text_encoder: {name}')
 
             # multiple encoders
             if 'clip' in name.lower():
                 encoder = CLIPTextModel.from_pretrained(
                     path, subfolder='text_encoder', torch_dtype=latent_type)
+
             elif 't5' in name.lower():
                 encoder = T5EncoderModel.from_pretrained(
                     path, subfolder='text_encoder', torch_dtype=latent_type)
+
             else:
                 assert 't5' in name.lower() or 'clip' in name.lower()
                 encoder = None  # makes pyright happy
@@ -54,7 +57,8 @@ class MultiTextEncoder(nn.Module):
             encoders[name] = encoder
 
             # multiple projection layers
-            encoder_dim = encoder.config.hidden_size  # XXX: where should I read the hidden_size?
+            encoder_dim = encoder.config.hidden_size
+            print(f'MultiTextEncoder-adapter-{name} {encoder_dim=} -> {feature_dim=}')
             if not encoders[name].config.hidden_size == feature_dim:
                 proj = nn.Linear(encoder_dim, feature_dim)
             else:
@@ -70,23 +74,31 @@ class MultiTextEncoder(nn.Module):
         self.encoder_keys = list(encoders.keys())
         assert set(self.gather_order) == set(self.encoder_keys)
 
-    def forward(
+    @torch.no_grad()
+    def forward_encoders(
         self,
         input_clip,
         input_t5,
         mask_clip=None,
         mask_t5=None,
     ):
+        self.encoders.eval()
         # forward multiple encoders
-        with torch.no_grad():
-            embeds_unaligned = {}
-            for name, encoder in self.encoders.items():
-                if 'clip' in name.lower():
-                    embeds_unaligned[name] = encoder(
-                        input_ids=input_clip, attention_mask=mask_clip)[0]
-                if 't5' in name.lower():
-                    embeds_unaligned[name] = encoder(input_ids=input_t5,
-                                                     attention_mask=mask_t5)[0]
+        embeds_unaligned = {}
+        for name, encoder in self.encoders.items():
+            if 'clip' in name.lower():
+                embeds_unaligned[name] = encoder(input_ids=input_clip,
+                                                 attention_mask=mask_clip)[0]
+            if 't5' in name.lower():
+                embeds_unaligned[name] = encoder(input_ids=input_t5,
+                                                 attention_mask=mask_t5)[0]
+
+        # for name, embed in embeds_unaligned.items():
+        #     print(f'{name}: {embed.shape}: {embed.dtype}')
+        #     print(self.projs[name])
+        return embeds_unaligned
+
+    def forward_projs(self, embeds_unaligned):
         # forward multiple projection layers
         embeds = {
             name: proj(embeds_unaligned[name])
@@ -94,4 +106,20 @@ class MultiTextEncoder(nn.Module):
         }
         encoder_hidden_states = [embeds[k] for k in self.gather_order]
         encoder_hidden_states = torch.cat(encoder_hidden_states, dim=1)
+        return encoder_hidden_states
+
+    def forward(
+        self,
+        input_clip,
+        input_t5,
+        mask_clip=None,
+        mask_t5=None,
+    ):
+        embeds_unaligned = self.forward_encoders(
+            input_clip=input_clip,
+            input_t5=input_t5,
+            mask_clip=mask_clip,
+            mask_t5=mask_t5,
+        )
+        encoder_hidden_states = self.forward_projs(embeds_unaligned)
         return encoder_hidden_states

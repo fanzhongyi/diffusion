@@ -1,0 +1,95 @@
+digraph {
+	graph [size="12,12"]
+	node [align=left fontname=monospace fontsize=10 height=0.2 ranksep=0.1 shape=box style=filled]
+	"Shuffler-8766519374722" [label=Shuffler]
+	"Shuffler-8766519374722" -> "Mapper-8766519374548"
+	"Shuffler-8766394892547" [label=Shuffler]
+	"Shuffler-8766394892547" -> "Mapper-8766501024624"
+	"WebDataset-8766519374725" [label=WebDataset]
+	"WebDataset-8766519374725" -> "Mapper-8766519374602"
+	"Mapper-8766519374602" [label=Mapper]
+	"Mapper-8766519374602" -> "Mapper-8766519374476"
+	"Mapper-8766519374476" [label=Mapper]
+	"Mapper-8766519374476" -> "Filter-8766519374770"
+	"Batcher-8764396404878" [label=Batcher]
+	"Batcher-8764396404878" -> "Collator-8764396404962"
+	"IterableWrapper-8766394900114" [label=IterableWrapper fillcolor=lightblue]
+	"IterableWrapper-8766394900114" -> "Shuffler-8766394892547"
+	"TarArchiveLoader-8766519374743" [label=TarArchiveLoader]
+	"TarArchiveLoader-8766519374743" -> "WebDataset-8766519374725"
+	"FileOpener-8766519374488" [label=FileOpener]
+	"FileOpener-8766519374488" -> "TarArchiveLoader-8766519374743"
+	"Shuffler-8764396404890" [label=Shuffler]
+	"Shuffler-8764396404890" -> "FileOpener-8764396404905"
+	"IterableWrapper-8764396404893" [label=IterableWrapper fillcolor=lightblue]
+	"IterableWrapper-8764396404893" -> "Shuffler-8764396404890"
+	"FileOpener-8764396404905" [label=FileOpener]
+	"FileOpener-8764396404905" -> "TarArchiveLoader-8764396404911"
+	"TarArchiveLoader-8766394380204" [label=TarArchiveLoader]
+	"TarArchiveLoader-8766394380204" -> "WebDataset-8766394380210"
+	"TarArchiveLoader-8764396404911" [label=TarArchiveLoader]
+	"TarArchiveLoader-8764396404911" -> "WebDataset-8764396404917"
+	"Filter-8766519374770" [label=Filter]
+	"Filter-8766519374770" -> "Shuffler-8766519374722"
+	"WebDataset-8766394380210" [label=WebDataset]
+	"WebDataset-8766394380210" -> "Mapper-8766394380216"
+	"WebDataset-8764396404917" [label=WebDataset]
+	"WebDataset-8764396404917" -> "Mapper-8764396404923"
+	"Shuffler-8766519374776" [label=Shuffler]
+	"Shuffler-8766519374776" -> "FileOpener-8766519374488"
+	"Mapper-8766394380216" [label=Mapper]
+	"Mapper-8766394380216" -> "Mapper-8766394380225"
+	"Mapper-8764396404923" [label=Mapper]
+	"Mapper-8764396404923" -> "Mapper-8764396404932"
+	"Mapper-8766394380222" [label=Mapper]
+	"Mapper-8766394380222" -> "Slice-8766394380264"
+	"Mapper-8766394380225" [label=Mapper]
+	"Mapper-8766394380225" -> "Filter-8766394380231"
+	"Mapper-8764396404929" [label=Mapper]
+	"Mapper-8764396404929" -> "Slice-8764396404971"
+	"Mapper-8764396404932" [label=Mapper]
+	"Mapper-8764396404932" -> "Filter-8764396404938"
+	"Filter-8766394380231" [label=Filter]
+	"Filter-8766394380231" -> "Shuffler-8766394380237"
+	"Filter-8764396404938" [label=Filter]
+	"Filter-8764396404938" -> "Shuffler-8764396404944"
+	"Slice-8766501024588" [label=Slice]
+	"Slice-8766501024588" -> "SampleMultiplexerDataPipe-8764396404860"
+	"Mapper-8766519374413" [label=Mapper]
+	"Mapper-8766519374413" -> "Slice-8766519374821"
+	"Shuffler-8766394380237" [label=Shuffler]
+	"Shuffler-8766394380237" -> "Mapper-8766394380243"
+	"IterableWrapper-8766519374800" [label=IterableWrapper fillcolor=lightblue]
+	"IterableWrapper-8766519374800" -> "Shuffler-8766519374776"
+	"Shuffler-8764396404944" [label=Shuffler]
+	"Shuffler-8764396404944" -> "Mapper-8764396404950"
+	"Mapper-8766394380243" [label=Mapper]
+	"Mapper-8766394380243" -> "Mapper-8766394380222"
+	"Mapper-8766519374548" [label=Mapper]
+	"Mapper-8766519374548" -> "Mapper-8766519374413"
+	"Mapper-8764396404950" [label=Mapper]
+	"Mapper-8764396404950" -> "Mapper-8764396404929"
+	"IterableWrapper-8766394379991" [label=IterableWrapper fillcolor=lightblue]
+	"IterableWrapper-8766394379991" -> "Shuffler-8766394380012"
+	"FileOpener-8766394379997" [label=FileOpener]
+	"FileOpener-8766394379997" -> "TarArchiveLoader-8766394380204"
+	"Collator-8764396404962" [label=Collator]
+	"Collator-8764396404962" -> "Prefetcher-8764396404980"
+	"Slice-8766519374821" [label=Slice]
+	"Slice-8766519374821" -> "SampleMultiplexerDataPipe-8764396404860"
+	"Slice-8766394380264" [label=Slice]
+	"Slice-8766394380264" -> "SampleMultiplexerDataPipe-8764396404860"
+	"Slice-8764396404971" [label=Slice]
+	"Slice-8764396404971" -> "SampleMultiplexerDataPipe-8764396404860"
+	"Shuffler-8766394380012" [label=Shuffler]
+	"Shuffler-8766394380012" -> "FileOpener-8766394379997"
+	"Mapper-8766394365040" [label=Mapper]
+	"Mapper-8766394365040" -> "Slice-8766501024588"
+	"PinMemory-8764396404977" [label=PinMemory fillcolor=darkolivegreen1]
+	"Mapper-8766501024624" [label=Mapper]
+	"Mapper-8766501024624" -> "Mapper-8766394365040"
+	"Prefetcher-8764396404980" [label=Prefetcher]
+	"Prefetcher-8764396404980" -> "PinMemory-8764396404977"
+	"SampleMultiplexerDataPipe-8764396404860" [label=SampleMultiplexerDataPipe]
+	"SampleMultiplexerDataPipe-8764396404860" -> "Batcher-8764396404878"
+}

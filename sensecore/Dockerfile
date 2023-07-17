@@ -19,13 +19,12 @@ COPY diffusion /app/diffusion
 COPY xformers /app/xformers
 
 RUN pip install --upgrade pip \
+    && pip uninstall -y pillow && pip install pillow-simd \
     && cd /app/petrel-oss \
     && python setup.py sdist \
     && pip install --no-cache-dir dist/* \
     && rm -rf dist \
-    && pip uninstall -y pillow && pip install pillow-simd \
-    && pip install ipdb \
     && pip install -v -U /app/xformers \
-    && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -e /app/diffusion
+    && pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -e /app/diffusion[all]
 
 WORKDIR /app/diffusion

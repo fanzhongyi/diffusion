@@ -11,6 +11,12 @@ from composer.models import ComposerModel
 from torchmetrics import MeanSquaredError, Metric
 from tqdm.auto import tqdm
 
+from diffusers.models.unet_2d_blocks import (CrossAttnDownBlock2D,
+                                             CrossAttnUpBlock2D, DownBlock2D,
+                                             UNetMidBlock2DCrossAttn,
+                                             UNetMidBlock2DSimpleCrossAttn,
+                                             UpBlock2D)
+
 
 class StableDiffusion3B(ComposerModel):
     """Stable Diffusion 3B ComposerModel.
@@ -148,11 +154,17 @@ class StableDiffusion3B(ComposerModel):
         if self.encode_latents_in_fp16:
             self.text_encoder.half()
             self.vae.half()
+
         if fsdp:
-            # only wrap models we are training
-            self.text_encoder._fsdp_wrap = False
+            self.mtext_encoder._fsdp_wrap = False
+            for module in self.mtext_encoder.modules():
+                module._fsdp_wrap = False
             self.vae._fsdp_wrap = False
             self.unet._fsdp_wrap = True
+
+    # need to implement in a custom Unet class
+    # def fsdp_wrap_fn(self, module):
+    #     return isinstance(module, CrossAttnDownBlock2D) or isinstance(module, CrossAttnUpBlock2D) or isinstance(module, DownBlock2D) or isinstance(module, UpBlock2D)
 
     def forward(self, batch):
         inputs, text_clip = batch[self.image_key], batch[self.text_key]
@@ -162,27 +174,16 @@ class StableDiffusion3B(ComposerModel):
         text_t5 = text_t5.view(-1, text_t5.shape[-1])
         mask_t5 = mask_t5.view(-1, mask_t5.shape[-1])
 
-        conditioning = None
-        if self.encode_latents_in_fp16:
-            # Disable autocast context as models are in fp16
-            with torch.cuda.amp.autocast(enabled=False):
-                # Encode the images to the latent space.
-                latents = self.vae.encode(inputs.half())['latent_dist'].sample().data
-                # Encode prompt into conditioning vector
-                conditioning = self.mtext_encoder(
-                    input_clip=text_clip,
-                    input_t5=text_t5,
-                    mask_clip=None,
-                    mask_t5=mask_t5,
-                )  # Should be (batch_size, 77, 768)
-        else:
+        with torch.cuda.amp.autocast(enabled=False):
             latents = self.vae.encode(inputs)['latent_dist'].sample().data
-            conditioning = self.mtext_encoder(
+            # __import__('torchinfo').summary(self.mtext_encoder)
+            embeds_unaligned = self.mtext_encoder.forward_encoders(
                 input_clip=text_clip,
                 input_t5=text_t5,
                 mask_clip=None,
                 mask_t5=mask_t5,
-            )
+            )  # Should be (batch_size, 77, 768)
+        conditioning = self.mtext_encoder.forward_projs(embeds_unaligned)
         # Magical scaling number (See https://github.com/huggingface/diffusers/issues/437#issuecomment-1241827515)
         latents *= 0.18215
 
@@ -192,6 +193,8 @@ class StableDiffusion3B(ComposerModel):
         noise = torch.randn_like(latents)
         noised_latents = self.noise_scheduler.add_noise(latents, noise, timesteps)
 
+        # __import__('torchinfo').summary(self.unet)
+        #__import__('ipdb').set_trace()
         # Forward through the model
         return self.unet(noised_latents, timesteps, conditioning)['sample'], noise, timesteps
 

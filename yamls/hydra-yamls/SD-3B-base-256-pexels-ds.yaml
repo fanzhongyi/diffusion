@@ -32,7 +32,7 @@ model:
   # tokenizer: ${tokenizer}
   unet_model_config_path: unet_config/config.json
   encode_latents_in_fp16: false
-  fsdp: true
+  fsdp: false
   val_metrics:
     - _target_: torchmetrics.MeanSquaredError
   val_guidance_scales: []
@@ -98,10 +98,11 @@ callbacks:
     _target_: composer.callbacks.memory_monitor.MemoryMonitor
   runtime_estimator:
     _target_: composer.callbacks.runtime_estimator.RuntimeEstimator
-  optimizer_monitor:
-    _target_: composer.callbacks.OptimizerMonitor
+  # optimizer_monitor:
+  #   _target_: composer.callbacks.OptimizerMonitor
 trainer:
   _target_: composer.Trainer
+  _convert_: partial
   device: gpu
   max_duration: 550000ba
   eval_interval: 550000ba
@@ -116,6 +117,6 @@ trainer:
   save_interval: 10000ba
   save_overwrite: true
   autoresume: false
-  fsdp_config:
-    sharding_strategy: "SHARD_GRAD_OP"
-    min_params: 1e10
+  deepspeed_config:
+    zero_optimization:
+      stage: 2

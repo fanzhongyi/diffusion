@@ -5,22 +5,21 @@
 import hydra
 import torch.distributed as dist
 from omegaconf import OmegaConf
-from petrel_client.client import Client
 from torchdata.dataloader2 import (DataLoader2, DistributedReadingService, MultiProcessingReadingService,
                                    SequentialReadingService)
 from torchdata.dataloader2.adapter import Shuffle
 from torchdata.datapipes.iter import SampleMultiplexer
 from torchvision import transforms
-from transformers import CLIPTokenizer
 
+from diffusion.datasets.multi_tokenizer import MultiTokenizer
 from diffusion.datasets.wds.transforms import LargestCenterSquare
 
 
 def build_mix_dataloader(
     datapipes,
+    tokenizer: MultiTokenizer,
     batch_size: int = 4,
     petrel_conf: str = '',
-    tokenizer_name_or_path: str = 'stabilityai/stable-diffusion-2-base',
     filter_strategy: str = '',
     caption_drop_prob: float = 0.0,
     resize_size: int = 256,
@@ -50,10 +49,8 @@ def build_mix_dataloader(
     print(f"DATAPIPE INFO -->\n{OmegaConf.to_yaml(datapipes)}")
 
     # Create a client for s3 remote access
+    from petrel_client.client import Client
     client = Client(petrel_conf)
-
-    tokenizer = CLIPTokenizer.from_pretrained(tokenizer_name_or_path,
-                                              subfolder='tokenizer')
 
     center_square_crop = LargestCenterSquare(resize_size)
     # Normalize from 0 to 1 to -1 to 1

@@ -50,7 +50,7 @@ dataset:
     # tokenizer: ${tokenizer}
     filter_strategy: ~
     caption_drop_prob: 0.0
-    resize_size: 256
+    resize_size: 512
     num_workers: 1
     prefetch_count: 8
     shuffle: true
@@ -65,7 +65,7 @@ dataset:
     # tokenizer: ${tokenizer}
     filter_strategy: ~
     caption_drop_prob: 0.0
-    resize_size: 256
+    resize_size: 512
     num_workers: 0
     prefetch_count: 8
     shuffle: true

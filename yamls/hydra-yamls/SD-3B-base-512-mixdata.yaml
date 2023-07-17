@@ -41,21 +41,43 @@ model:
 dataset:
   train_batch_size: ${batch_size}
   eval_batch_size: 1024 # Should be 8 per device
+
   train_dataset:
-    _target_: diffusion.datasets.pexels.pexels_datapipe.build_pexels_dataloader
-    data_path: /mnt/CV_teamz/crawl_data/pexels
-    json_list: /mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json
+    _target_: diffusion.datasets.mix_datapipe.build_mix_dataloader
+    datapipes:
+      pexels:
+        _target_: diffusion.datasets.pexels.ImgDatapipe
+        data_path: /mnt/CV_teamz/crawl_data/pexels
+        json_list: /mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json
+        filter_strategy: ~
+        weight: 0.012
+      laion:
+        _target_: diffusion.datasets.wds.WdsDatapipe
+        data_path: /mnt/CV_550w/LAION5B-clean/afs-laion2b.json
+        filter_strategy: ~
+        weight: 5.3
+      coyo:
+        _target_: diffusion.datasets.wds.WdsDatapipe
+        data_path: /mnt/CV_550w/datasets/afs-coyo.json
+        filter_strategy: ~
+        weight: 2.1
+      cc:
+        _target_: diffusion.datasets.wds.WdsDatapipe
+        data_path: /mnt/CV_550w/datasets/afs-cc-all.json
+        filter_strategy: ~
+        weight: 0.06
+    tokenizer: ${tokenizer}
     batch_size: ${batch_size}
     petrel_conf: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
-    # tokenizer: ${tokenizer}
     filter_strategy: ~
     caption_drop_prob: 0.0
-    resize_size: 256
+    resize_size: 512
     num_workers: 1
     prefetch_count: 8
     shuffle: true
     drop_last: true
     seed: ${seed}
+
   eval_dataset:
     _target_: diffusion.datasets.pexels.pexels_datapipe.build_pexels_dataloader
     data_path: /mnt/CV_teamz/crawl_data/pexels
@@ -65,11 +87,12 @@ dataset:
     # tokenizer: ${tokenizer}
     filter_strategy: ~
     caption_drop_prob: 0.0
-    resize_size: 256
+    resize_size: 512
     num_workers: 0
     prefetch_count: 8
     shuffle: true
     drop_last: true
+
 optimizer:
   _target_: torch.optim.AdamW
   lr: 1.0e-4
