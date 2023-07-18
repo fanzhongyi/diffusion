@@ -93,9 +93,6 @@ class MultiTextEncoder(nn.Module):
                 embeds_unaligned[name] = encoder(input_ids=input_t5,
                                                  attention_mask=mask_t5)[0]
 
-        # for name, embed in embeds_unaligned.items():
-        #     print(f'{name}: {embed.shape}: {embed.dtype}')
-        #     print(self.projs[name])
         return embeds_unaligned
 
     def forward_projs(self, embeds_unaligned):

@@ -72,12 +72,11 @@ dataset:
     filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
-    num_workers: 1
+    num_workers: 2
     prefetch_count: 8
     shuffle: true
     drop_last: true
     seed: ${seed}
-
   eval_dataset:
     _target_: diffusion.datasets.pexels.pexels_datapipe.build_pexels_dataloader
     data_path: /mnt/CV_teamz/crawl_data/pexels
@@ -90,7 +89,7 @@ dataset:
     resize_size: 256
     num_workers: 0
     prefetch_count: 8
-    shuffle: true
+    shuffle: false
     drop_last: true
 
 optimizer:

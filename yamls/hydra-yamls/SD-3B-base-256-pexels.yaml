@@ -51,7 +51,7 @@ dataset:
     filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
-    num_workers: 1
+    num_workers: 2
     prefetch_count: 8
     shuffle: true
     drop_last: true
@@ -68,8 +68,9 @@ dataset:
     resize_size: 256
     num_workers: 0
     prefetch_count: 8
-    shuffle: true
+    shuffle: false
     drop_last: true
+
 optimizer:
   _target_: torch.optim.AdamW
   lr: 1.0e-4

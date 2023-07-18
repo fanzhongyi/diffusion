@@ -162,10 +162,6 @@ class StableDiffusion3B(ComposerModel):
             self.vae._fsdp_wrap = False
             self.unet._fsdp_wrap = True
 
-    # need to implement in a custom Unet class
-    # def fsdp_wrap_fn(self, module):
-    #     return isinstance(module, CrossAttnDownBlock2D) or isinstance(module, CrossAttnUpBlock2D) or isinstance(module, DownBlock2D) or isinstance(module, UpBlock2D)
-
     def forward(self, batch):
         inputs, text_clip = batch[self.image_key], batch[self.text_key]
         text_t5, mask_t5 = batch[self.t5_text_key], batch[self.t5_mask_key]
@@ -192,7 +188,6 @@ class StableDiffusion3B(ComposerModel):
         # Add noise to the inputs (forward diffusion)
         noise = torch.randn_like(latents)
         noised_latents = self.noise_scheduler.add_noise(latents, noise, timesteps)
-
         # __import__('torchinfo').summary(self.unet)
         #__import__('ipdb').set_trace()
         # Forward through the model

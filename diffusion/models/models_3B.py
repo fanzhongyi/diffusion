@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 
 import torch
 from composer.devices import DeviceGPU
-from diffusers import AutoencoderKL, DDIMScheduler, DDPMScheduler, UNet2DConditionModel
+from diffusers import AutoencoderKL, DDIMScheduler, DDPMScheduler
 from torchmetrics import MeanSquaredError
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.multimodal.clip_score import CLIPScore
@@ -15,6 +15,7 @@ from torchmetrics.multimodal.clip_score import CLIPScore
 from diffusion.datasets.multi_tokenizer import MultiTokenizer
 from diffusion.models.multi_text_encoder import MultiTextEncoder
 from diffusion.models.stable_diffusion_3B import StableDiffusion3B
+from diffusion.unet.unet_2d_condition import UNet2DConditionModel
 from torchinfo import summary
 
 try:
@@ -77,7 +78,7 @@ def stable_diffusion_3B(
 
     if unet_model_config_path is not None:
         unet_config = json.load(open(unet_model_config_path))
-        unet_config['transformer_layers_per_block'] = unet_config.pop('transformer_depth')
+        # unet_config['transformer_layers_per_block'] = unet_config.pop('transformer_depth')
         unet = UNet2DConditionModel.from_config(unet_config)
     else:
         unet = UNet2DConditionModel.from_pretrained(model_name,
@@ -86,10 +87,13 @@ def stable_diffusion_3B(
 
     mtext_encoder = MultiTextEncoder(
         text_encoders=text_encoders,
-        feature_dim=unet.config.encoder_hid_dim or
-        unet.config.cross_attention_dim,
+        feature_dim=unet.config.encoder_hid_dim or unet.config.cross_attention_dim,
         encode_latents_in_fp16=encode_latents_in_fp16,
     )
+
+    # TODO: move mtext_encoder.projs to unet projs for more flexible (may cause fsdp error)
+    # unet.projs = mtext_encoder.projs
+    summary(unet) # type: ignore
 
     if encode_latents_in_fp16:
         vae = AutoencoderKL.from_pretrained(model_name,
