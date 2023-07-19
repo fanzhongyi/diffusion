@@ -33,6 +33,7 @@ def stable_diffusion_3B(
     text_encoders: Dict[str, str],
     tokenizer: MultiTokenizer,
     unet_model_config_path: Optional[str] = None,
+    prediction_type: str = 'epsilon',
     train_metrics: Optional[List] = None,
     val_metrics: Optional[List] = None,
     val_guidance_scales: Optional[List] = None,
@@ -49,7 +50,9 @@ def stable_diffusion_3B(
     Args:
         model_name (str, optional): Name of the model to load. Defaults to 'stabilityai/stable-diffusion-2-base'.
         text_encoders (Optional[str, Dict]): names list of multiple text encoder.
-        pretrained (bool, optional): Whether to load pretrained weights. Defaults to True.
+        unet_model_config_path (str, optional): config file used to build UNet model.
+        prediction_type (str, optional): The type of prediction to use. Must be one of 'sample',
+            'epsilon', or 'v_prediction'. Default: `epsilon`.
         train_metrics (list, optional): List of metrics to compute during training. If None, defaults to
             [MeanSquaredError()].
         val_metrics (list, optional): List of metrics to compute during validation. If None, defaults to
@@ -100,8 +103,16 @@ def stable_diffusion_3B(
 
     noise_scheduler = DDPMScheduler.from_pretrained(model_name,
                                                     subfolder='scheduler')
-    inference_noise_scheduler = DDIMScheduler.from_pretrained(
-        model_name, subfolder='scheduler')
+    inference_noise_scheduler = DDIMScheduler(
+        num_train_timesteps=noise_scheduler.config.num_train_timesteps,
+        beta_start=noise_scheduler.config.beta_start,
+        beta_end=noise_scheduler.config.beta_end,
+        beta_schedule=noise_scheduler.config.beta_schedule,
+        trained_betas=noise_scheduler.config.trained_betas,
+        clip_sample=noise_scheduler.config.clip_sample,
+        set_alpha_to_one=noise_scheduler.config.set_alpha_to_one,
+        prediction_type=prediction_type,
+    )
 
     model = StableDiffusion3B(
         unet_wrapper=unet_wrapper,
@@ -110,6 +121,7 @@ def stable_diffusion_3B(
         tokenizer=tokenizer,
         noise_scheduler=noise_scheduler,
         inference_noise_scheduler=inference_noise_scheduler,
+        prediction_type=prediction_type,
         train_metrics=train_metrics,
         val_metrics=val_metrics,
         val_guidance_scales=val_guidance_scales,
