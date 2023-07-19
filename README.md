@@ -10,6 +10,19 @@ checkout **stable** branch for sd2.1 version, corresponding config file is
 
 **main** : not a stable branch.
 
+- News:
+    - aligned to predefined unet struct
+    - complete fsdp and deepspeed training of 3B model
+
+- TODO:
+    - save and resume
+    - predition_type option
+    - review @peter
+    - training precision
+
+- Pending:
+    - add faster option with flash-atten2 (use cutlass)
+
 # Training from stratch
 
 ## Single Nodes (for ipdb debug)

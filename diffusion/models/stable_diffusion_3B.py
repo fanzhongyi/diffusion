@@ -1,6 +1,5 @@
 # Copyright 2022 babyfan
 # SPDX-License-Identifier: Apache-2.0
-
 """Diffusion models."""
 
 from typing import List, Optional
@@ -11,11 +10,7 @@ from composer.models import ComposerModel
 from torchmetrics import MeanSquaredError, Metric
 from tqdm.auto import tqdm
 
-from diffusers.models.unet_2d_blocks import (CrossAttnDownBlock2D,
-                                             CrossAttnUpBlock2D, DownBlock2D,
-                                             UNetMidBlock2DCrossAttn,
-                                             UNetMidBlock2DSimpleCrossAttn,
-                                             UpBlock2D)
+from diffusion.models.unet_wrapper import UNetWrapper
 
 
 class StableDiffusion3B(ComposerModel):
@@ -73,9 +68,9 @@ class StableDiffusion3B(ComposerModel):
     """
 
     def __init__(self,
-                 unet,
+                 unet_wrapper: UNetWrapper,
                  vae,
-                 mtext_encoder,
+                 text_encoder,
                  tokenizer,
                  noise_scheduler,
                  inference_noise_scheduler,
@@ -93,7 +88,8 @@ class StableDiffusion3B(ComposerModel):
                  fsdp: bool = False):
         super().__init__()
 
-        self.unet = unet
+        self.unet_wrapper = unet_wrapper
+        self.unet = unet_wrapper.unet
         self.vae = vae
         self.noise_scheduler = noise_scheduler
         self.loss_fn = loss_fn
@@ -116,7 +112,9 @@ class StableDiffusion3B(ComposerModel):
 
         # bin metrics
         self.val_metrics = {}
-        metrics_to_sweep = ['FrechetInceptionDistance', 'InceptionScore', 'CLIPScore']
+        metrics_to_sweep = [
+            'FrechetInceptionDistance', 'InceptionScore', 'CLIPScore'
+        ]
         for metric in val_metrics:
             if metric.__class__.__name__ in metrics_to_sweep:
                 for scale in val_guidance_scales:
@@ -124,22 +122,22 @@ class StableDiffusion3B(ComposerModel):
                     # WARNING: ugly hack...
                     new_metric.guidance_scale = scale
                     scale_str = str(scale).replace('.', 'p')
-                    self.val_metrics[f'{metric.__class__.__name__}-scale-{scale_str}'] = new_metric
+                    self.val_metrics[
+                        f'{metric.__class__.__name__}-scale-{scale_str}'] = new_metric
             elif isinstance(metric, MeanSquaredError):
                 for bin in loss_bins:
                     new_metric = type(metric)(**vars(metric))
                     # WARNING: ugly hack...
                     new_metric.loss_bin = bin
-                    self.val_metrics[f'{metric.__class__.__name__}-bin-{bin[0]}-to-{bin[1]}'.replace('.',
-                                                                                                     'p')] = new_metric
+                    self.val_metrics[
+                        f'{metric.__class__.__name__}-bin-{bin[0]}-to-{bin[1]}'.
+                        replace('.', 'p')] = new_metric
             else:
                 self.val_metrics[metric.__class__.__name__] = metric
         # Add a mse metric for the full loss
         self.val_metrics['MeanSquaredError'] = MeanSquaredError()
 
-        self.mtext_encoder = mtext_encoder
-        self.text_encoder = mtext_encoder.encoders
-        self.projs = mtext_encoder.projs
+        self.text_encoder = text_encoder
 
         self.tokenizer = tokenizer
         self.inference_scheduler = inference_noise_scheduler
@@ -156,11 +154,13 @@ class StableDiffusion3B(ComposerModel):
             self.vae.half()
 
         if fsdp:
-            self.mtext_encoder._fsdp_wrap = False
-            for module in self.mtext_encoder.modules():
+            self.text_encoder._fsdp_wrap = False
+            for module in self.text_encoder.modules():
                 module._fsdp_wrap = False
             self.vae._fsdp_wrap = False
-            self.unet._fsdp_wrap = True
+            self.unet_wrapper._fsdp_wrap = False
+            self.unet_wrapper.projs._fsdp_wrap = False
+            self.unet_wrapper.unet._fsdp_wrap = True
 
     def forward(self, batch):
         inputs, text_clip = batch[self.image_key], batch[self.text_key]
@@ -172,26 +172,31 @@ class StableDiffusion3B(ComposerModel):
 
         with torch.cuda.amp.autocast(enabled=False):
             latents = self.vae.encode(inputs)['latent_dist'].sample().data
-            # __import__('torchinfo').summary(self.mtext_encoder)
-            embeds_unaligned = self.mtext_encoder.forward_encoders(
+            __import__('torchinfo').summary(self.unet_wrapper, depth=6)
+            __import__('torchinfo').summary(self.text_encoder, depth=4)
+            embeds_unaligned = self.text_encoder(
                 input_clip=text_clip,
                 input_t5=text_t5,
                 mask_clip=None,
                 mask_t5=mask_t5,
             )  # Should be (batch_size, 77, 768)
-        conditioning = self.mtext_encoder.forward_projs(embeds_unaligned)
+        conditioning = self.unet_wrapper.forward_projs(embeds_unaligned)
         # Magical scaling number (See https://github.com/huggingface/diffusers/issues/437#issuecomment-1241827515)
         latents *= 0.18215
 
         # Sample the diffusion timesteps
-        timesteps = torch.randint(0, len(self.noise_scheduler), (latents.shape[0],), device=latents.device)
+        timesteps = torch.randint(0,
+                                  len(self.noise_scheduler),
+                                  (latents.shape[0],),
+                                  device=latents.device)
         # Add noise to the inputs (forward diffusion)
         noise = torch.randn_like(latents)
-        noised_latents = self.noise_scheduler.add_noise(latents, noise, timesteps)
-        # __import__('torchinfo').summary(self.unet)
+        noised_latents = self.noise_scheduler.add_noise(latents, noise,
+                                                        timesteps)
         #__import__('ipdb').set_trace()
         # Forward through the model
-        return self.unet(noised_latents, timesteps, conditioning)['sample'], noise, timesteps
+        return self.unet(noised_latents, timesteps,
+                         conditioning)['sample'], noise, timesteps
 
     def loss(self, outputs, batch):
         """Loss between unet output and added noise, typically mse."""
@@ -206,7 +211,8 @@ class StableDiffusion3B(ComposerModel):
         unet_out, noise, timesteps = self.forward(batch)
         # Sample images from the prompts in the batch
         prompts = batch[self.text_key]
-        height, width = batch[self.image_key].shape[-2], batch[self.image_key].shape[-1]
+        height, width = batch[self.image_key].shape[-2], batch[
+            self.image_key].shape[-1]
         generated_images = {}
         for guidance_scale in self.val_guidance_scales:
             gen_images = self.generate(tokenized_prompts=prompts,
@@ -227,7 +233,9 @@ class StableDiffusion3B(ComposerModel):
         if isinstance(metrics, Metric):
             metrics_dict = {metrics.__class__.__name__: metrics}
         elif isinstance(metrics, list):
-            metrics_dict = {metrics.__class__.__name__: metric for metric in metrics}
+            metrics_dict = {
+                metrics.__class__.__name__: metric for metric in metrics
+            }
         else:
             metrics_dict = {}
             for name, metric in metrics.items():
@@ -246,7 +254,8 @@ class StableDiffusion3B(ComposerModel):
             T_max = self.noise_scheduler.num_train_timesteps
             # Get the indices corresponding to timesteps in the bin
             bin_indices = torch.where(
-                (outputs[2] >= loss_bin[0] * T_max) & (outputs[2] < loss_bin[1] * T_max))  # type: ignore
+                (outputs[2] >= loss_bin[0] * T_max) &
+                (outputs[2] < loss_bin[1] * T_max))  # type: ignore
             # Update the metric for items in the bin
             metric.update(outputs[0][bin_indices], outputs[1][bin_indices])
         elif isinstance(metric, MeanSquaredError):
@@ -261,8 +270,12 @@ class StableDiffusion3B(ComposerModel):
         # CLIP metrics should be updated with the generated images at the desired guidance scale
         elif metric.__class__.__name__ == 'CLIPScore':
             # Convert the captions to a list of strings
-            captions = [self.tokenizer.decode(caption, skip_special_tokens=True) for caption in batch[self.text_key]]
-            generated_images = (outputs[3][metric.guidance_scale] * 255).to(torch.uint8)
+            captions = [
+                self.tokenizer.decode(caption, skip_special_tokens=True)
+                for caption in batch[self.text_key]
+            ]
+            generated_images = (outputs[3][metric.guidance_scale] * 255).to(
+                torch.uint8)
             metric.update(generated_images, captions)
         else:
             metric.update(outputs[0], outputs[1])
@@ -344,20 +357,27 @@ class StableDiffusion3B(ComposerModel):
 
         do_classifier_free_guidance = guidance_scale > 1.0  # type: ignore
 
-        text_embeddings = self._prepare_text_embeddings(prompt, tokenized_prompts, prompt_embeds, num_images_per_prompt)
+        text_embeddings = self._prepare_text_embeddings(prompt,
+                                                        tokenized_prompts,
+                                                        prompt_embeds,
+                                                        num_images_per_prompt)
         batch_size = len(text_embeddings)  # len prompts * num_images_per_prompt
         # classifier free guidance + negative prompts
         # negative prompt is given in place of the unconditional input in classifier free guidance
         if do_classifier_free_guidance:
-            negative_prompt = negative_prompt or ([''] * (batch_size // num_images_per_prompt))  # type: ignore
-            unconditional_embeddings = self._prepare_text_embeddings(negative_prompt, tokenized_negative_prompts,
-                                                                     negative_prompt_embeds, num_images_per_prompt)
+            negative_prompt = negative_prompt or (
+                [''] * (batch_size // num_images_per_prompt))  # type: ignore
+            unconditional_embeddings = self._prepare_text_embeddings(
+                negative_prompt, tokenized_negative_prompts,
+                negative_prompt_embeds, num_images_per_prompt)
             # concat uncond + prompt
-            text_embeddings = torch.cat([unconditional_embeddings, text_embeddings])
+            text_embeddings = torch.cat(
+                [unconditional_embeddings, text_embeddings])
 
         # prepare for diffusion generation process
         latents = torch.randn(
-            (batch_size, self.unet.config.in_channels, height // vae_scale_factor, width // vae_scale_factor),
+            (batch_size, self.unet.config.in_channels,
+             height // vae_scale_factor, width // vae_scale_factor),
             device=device,
             generator=rng_generator,
         )
@@ -367,23 +387,29 @@ class StableDiffusion3B(ComposerModel):
         latents = latents * self.inference_scheduler.init_noise_sigma
 
         # backward diffusion process
-        for t in tqdm(self.inference_scheduler.timesteps, disable=not progress_bar):
+        for t in tqdm(self.inference_scheduler.timesteps,
+                      disable=not progress_bar):
             if do_classifier_free_guidance:
                 latent_model_input = torch.cat([latents] * 2)
             else:
                 latent_model_input = latents
 
-            latent_model_input = self.inference_scheduler.scale_model_input(latent_model_input, t)
+            latent_model_input = self.inference_scheduler.scale_model_input(
+                latent_model_input, t)
             # predict the noise residual
-            noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
+            noise_pred = self.unet(latent_model_input,
+                                   t,
+                                   encoder_hidden_states=text_embeddings).sample
 
             if do_classifier_free_guidance:
                 # perform guidance
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                noise_pred = noise_pred_uncond + guidance_scale * (
+                    noise_pred_text - noise_pred_uncond)
 
             # compute the previous noisy sample x_t -> x_t-1
-            latents = self.inference_scheduler.step(noise_pred, t, latents, generator=rng_generator).prev_sample
+            latents = self.inference_scheduler.step(
+                noise_pred, t, latents, generator=rng_generator).prev_sample
 
         # We now use the vae to decode the generated latents back into the image.
         # scale and decode the image latents with vae
@@ -392,20 +418,25 @@ class StableDiffusion3B(ComposerModel):
         image = (image / 2 + 0.5).clamp(0, 1)
         return image.detach()  # (batch*num_images_per_prompt, channel, h, w)
 
-    def _prepare_text_embeddings(self, prompt, tokenized_prompts, prompt_embeds, num_images_per_prompt):
+    def _prepare_text_embeddings(self, prompt, tokenized_prompts, prompt_embeds,
+                                 num_images_per_prompt):
         """Tokenizes and embeds prompts if needed, then duplicates embeddings to support multiple generations per prompt."""
         device = self.text_encoder.device
         if prompt_embeds is None:
             if tokenized_prompts is None:
-                tokenized_prompts = self.tokenizer.tokenize(prompt, device=device)
-            text_embeddings = self.mtext_encoder(tokenized_prompts)  # type: ignore
+                tokenized_prompts = self.tokenizer.tokenize(prompt,
+                                                            device=device)
+            text_embeddings = self.text_encoder(
+                tokenized_prompts)  # type: ignore
         else:
             text_embeddings = prompt_embeds
 
         # duplicate text embeddings for each generation per prompt
         bs_embed, seq_len, _ = text_embeddings.shape
-        text_embeddings = text_embeddings.repeat(1, num_images_per_prompt, 1)  # type: ignore
-        text_embeddings = text_embeddings.view(bs_embed * num_images_per_prompt, seq_len, -1)
+        text_embeddings = text_embeddings.repeat(1, num_images_per_prompt,
+                                                 1)  # type: ignore
+        text_embeddings = text_embeddings.view(bs_embed * num_images_per_prompt,
+                                               seq_len, -1)
         return text_embeddings
 
 
@@ -414,12 +445,17 @@ def _check_prompt_lenths(prompt, negative_prompt):
         return
     batch_size = 1 if isinstance(prompt, str) else len(prompt)
     if negative_prompt:
-        negative_prompt_bs = 1 if isinstance(negative_prompt, str) else len(negative_prompt)
+        negative_prompt_bs = 1 if isinstance(negative_prompt,
+                                             str) else len(negative_prompt)
         if negative_prompt_bs != batch_size:
-            raise ValueError(f'len(prompts) and len(negative_prompts) must be the same. \
+            raise ValueError(
+                f'len(prompts) and len(negative_prompts) must be the same. \
                     A negative prompt must be provided for each given prompt.')
 
 
 def _check_prompt_given(prompt, tokenized_prompts, prompt_embeds):
     if prompt is None and tokenized_prompts is None and prompt_embeds is None:
-        raise ValueError('Must provide one of `prompt`, `tokenized_prompts`, or `prompt_embeds`')
+        raise ValueError(
+            'Must provide one of `prompt`, `tokenized_prompts`, or `prompt_embeds`'
+        )
+

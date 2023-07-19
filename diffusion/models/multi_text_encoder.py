@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Multiple Text Encoder."""
 
-from typing import Dict, Tuple
+from typing import Dict
 
 import torch
 import torch.nn as nn
@@ -10,7 +10,7 @@ from transformers import CLIPTextModel, T5EncoderModel
 
 
 class MultiTextEncoder(nn.Module):
-    """MultiTextEncoder ComposerModel.
+    """MultiTextEncoder torch Model.
 
     Args:
         text_encoders (torch.nn.Module): HuggingFace CLIP or LLM text enoders.
@@ -26,15 +26,11 @@ class MultiTextEncoder(nn.Module):
     def __init__(
             self,
             text_encoders: Dict[str, str],
-            feature_dim: int = 4096,
             encode_latents_in_fp16: bool = False,
-            gather_order: Tuple = ('clip_G', 'clip_B', 't5_L'),
     ):
         super().__init__()
 
-        self.feature_dim = feature_dim
         encoders = {}
-        projs = {}
 
         # initlization
         latent_type = torch.float16 if encode_latents_in_fp16 else torch.float
@@ -56,23 +52,7 @@ class MultiTextEncoder(nn.Module):
 
             encoders[name] = encoder
 
-            # multiple projection layers
-            encoder_dim = encoder.config.hidden_size
-            print(f'MultiTextEncoder-adapter-{name} {encoder_dim=} -> {feature_dim=}')
-            if not encoders[name].config.hidden_size == feature_dim:
-                proj = nn.Linear(encoder_dim, feature_dim)
-            else:
-                proj = nn.Identity()
-
-            projs[name] = proj
-
         self.encoders = nn.ModuleDict(encoders)
-        self.projs = nn.ModuleDict(projs)
-
-        # TODO: remove gather order
-        self.gather_order = gather_order
-        self.encoder_keys = list(encoders.keys())
-        assert set(self.gather_order) == set(self.encoder_keys)
 
     @torch.no_grad()
     def forward_encoders(
@@ -95,16 +75,6 @@ class MultiTextEncoder(nn.Module):
 
         return embeds_unaligned
 
-    def forward_projs(self, embeds_unaligned):
-        # forward multiple projection layers
-        embeds = {
-            name: proj(embeds_unaligned[name])
-            for name, proj in self.projs.items()
-        }
-        encoder_hidden_states = [embeds[k] for k in self.gather_order]
-        encoder_hidden_states = torch.cat(encoder_hidden_states, dim=1)
-        return encoder_hidden_states
-
     def forward(
         self,
         input_clip,
@@ -118,5 +88,4 @@ class MultiTextEncoder(nn.Module):
             mask_clip=mask_clip,
             mask_t5=mask_t5,
         )
-        encoder_hidden_states = self.forward_projs(embeds_unaligned)
-        return encoder_hidden_states
+        return embeds_unaligned

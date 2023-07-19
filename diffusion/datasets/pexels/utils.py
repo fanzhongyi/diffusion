@@ -20,7 +20,7 @@ def filter_fn(sample, filter_strategy=None):
     if filter_strategy is None:
         return True
 
-    dic = sample.get("json", {})
+    dic = sample
     if isinstance(dic, bytes):
         dic = json.loads(dic)
 

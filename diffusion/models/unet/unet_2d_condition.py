@@ -583,8 +583,15 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         # else:
         #     self.tokenizer_adapter_layer_clip = None
 
-    # def fsdp_wrap_fn(self, module):
-    #     return isinstance(module, (CrossAttnDownBlock2D, DownBlock2D, CrossAttnUpBlock2D, UpBlock2D))
+    def fsdp_wrap_fn(self, module):
+        return isinstance(module, (
+            CrossAttnDownBlock2D,
+            DownBlock2D,
+            CrossAttnUpBlock2D,
+            UpBlock2D,
+            UNetMidBlock2DCrossAttn,
+            UNetMidBlock2DSimpleCrossAttn,
+        ))
 
     @property
     def attn_processors(self) -> Dict[str, AttentionProcessor]:

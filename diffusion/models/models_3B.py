@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Constructors for diffusion models."""
 
-import json
 from typing import Dict, List, Optional
 
 import torch
@@ -15,7 +14,8 @@ from torchmetrics.multimodal.clip_score import CLIPScore
 from diffusion.datasets.multi_tokenizer import MultiTokenizer
 from diffusion.models.multi_text_encoder import MultiTextEncoder
 from diffusion.models.stable_diffusion_3B import StableDiffusion3B
-from diffusion.unet.unet_2d_condition import UNet2DConditionModel
+from diffusion.models.unet_wrapper import UNetWrapper
+from transformers import logging as hf_logging
 from torchinfo import summary
 
 try:
@@ -24,6 +24,8 @@ try:
     is_xformers_installed = True
 except:
     is_xformers_installed = False
+
+hf_logging.set_verbosity_error()
 
 
 def stable_diffusion_3B(
@@ -76,24 +78,18 @@ def stable_diffusion_3B(
         if isinstance(metric, CLIPScore):
             metric.requires_grad_(False)
 
-    if unet_model_config_path is not None:
-        unet_config = json.load(open(unet_model_config_path))
-        # unet_config['transformer_layers_per_block'] = unet_config.pop('transformer_depth')
-        unet = UNet2DConditionModel.from_config(unet_config)
-    else:
-        unet = UNet2DConditionModel.from_pretrained(model_name,
-                                                    subfolder='unet')
-    summary(unet) # type: ignore
-
     mtext_encoder = MultiTextEncoder(
         text_encoders=text_encoders,
-        feature_dim=unet.config.encoder_hid_dim or unet.config.cross_attention_dim,
         encode_latents_in_fp16=encode_latents_in_fp16,
     )
+    summary(mtext_encoder, depth=4)  # type: ignore
 
-    # TODO: move mtext_encoder.projs to unet projs for more flexible (may cause fsdp error)
-    # unet.projs = mtext_encoder.projs
-    summary(unet) # type: ignore
+    unet_wrapper = UNetWrapper(
+        model_name=model_name,
+        unet_model_config_path=unet_model_config_path,
+        mtext_encoder=mtext_encoder,
+    )
+    summary(unet_wrapper, depth=4)  # type: ignore
 
     if encode_latents_in_fp16:
         vae = AutoencoderKL.from_pretrained(model_name,
@@ -108,9 +104,9 @@ def stable_diffusion_3B(
         model_name, subfolder='scheduler')
 
     model = StableDiffusion3B(
-        unet=unet,
+        unet_wrapper=unet_wrapper,
         vae=vae,
-        mtext_encoder=mtext_encoder,
+        text_encoder=mtext_encoder,
         tokenizer=tokenizer,
         noise_scheduler=noise_scheduler,
         inference_noise_scheduler=inference_noise_scheduler,

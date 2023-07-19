@@ -242,4 +242,7 @@ def build_pexels_dataloader(
 
 
 if __name__ == '__main__':
-    ImgDatapipe(data_path='/home/babyfan/')
+    ImgDatapipe(
+        data_path='/mnt/CV_teamz/crawl_data/pexels',
+        json_list='/mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json',
+    )

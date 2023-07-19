@@ -119,4 +119,5 @@ trainer:
   autoresume: false
   fsdp_config:
     sharding_strategy: "SHARD_GRAD_OP"
+    verbose: true
     min_params: 1e10
