@@ -116,7 +116,7 @@ trainer:
   scale_schedule_ratio: ${scale_schedule_ratio}
   save_folder: ./outputs/model_save_3B_deepspeed
   save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
-  save_interval: 500ba
+  save_interval: 20ba
   save_overwrite: true
   autoresume: false
   deepspeed_config:

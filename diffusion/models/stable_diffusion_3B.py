@@ -2,15 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """Diffusion models."""
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Tuple
 
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 from composer.models import ComposerModel
 from torchmetrics import MeanSquaredError, Metric
 from tqdm.auto import tqdm
-
-from diffusion.models.unet_wrapper import UNetWrapper
 
 
 class StableDiffusion3B(ComposerModel):
@@ -69,12 +68,13 @@ class StableDiffusion3B(ComposerModel):
     """
 
     def __init__(self,
-                 unet_wrapper: UNetWrapper,
+                 unet,
                  vae,
                  text_encoder,
                  tokenizer,
                  noise_scheduler,
                  inference_noise_scheduler,
+                 gather_order: Tuple = ('clip_G', 'clip_B', 't5_L'),
                  loss_fn=F.mse_loss,
                  prediction_type: str= 'epsilon',
                  train_metrics: Optional[List] = None,
@@ -90,8 +90,7 @@ class StableDiffusion3B(ComposerModel):
                  fsdp: bool = False):
         super().__init__()
 
-        self.unet_wrapper = unet_wrapper
-        self.unet = unet_wrapper.unet
+        self.unet = unet
         self.vae = vae
         self.noise_scheduler = noise_scheduler
         self.loss_fn = loss_fn
@@ -159,14 +158,40 @@ class StableDiffusion3B(ComposerModel):
             self.text_encoder.half()
             self.vae.half()
 
+        # multiple projection layers
+        feature_dim = unet.config.encoder_hid_dim or unet.config.cross_attention_dim  # type: ignore
+        projs = {}
+        for name, encoder in text_encoder.encoders.items():
+            encoder_dim = encoder.config.hidden_size
+            if not encoder_dim == feature_dim:
+                proj = nn.Linear(encoder_dim, feature_dim)
+            else:
+                proj = nn.Identity()
+            projs[name] = proj
+            print(f'Encoder-{name} Adapter {encoder_dim=} -> {feature_dim=}')
+        self.projs = nn.ModuleDict(projs)
+
+        self.gather_order = gather_order
+        self.proj_keys = list(projs.keys())
+        assert set(self.gather_order) == set(self.proj_keys)
+
         if fsdp:
             self.text_encoder._fsdp_wrap = False
             for module in self.text_encoder.modules():
                 module._fsdp_wrap = False
             self.vae._fsdp_wrap = False
-            self.unet_wrapper._fsdp_wrap = False
-            self.unet_wrapper.projs._fsdp_wrap = False
-            self.unet_wrapper.unet._fsdp_wrap = True
+            self.projs._fsdp_wrap = False
+            self.unet._fsdp_wrap = True
+
+    def forward_projs(self, embeds_unaligned: Dict[str, torch.Tensor]):
+        # forward multiple projection layers
+        embeds = {
+            name: proj(embeds_unaligned[name])
+            for name, proj in self.projs.items()
+        }
+        encoder_hidden_states = [embeds[k] for k in self.gather_order]
+        encoder_hidden_states = torch.cat(encoder_hidden_states, dim=1)
+        return encoder_hidden_states
 
     def forward(self, batch):
         inputs, text_clip = batch[self.image_key], batch[self.text_key]
@@ -178,15 +203,15 @@ class StableDiffusion3B(ComposerModel):
 
         with torch.cuda.amp.autocast(enabled=False):
             latents = self.vae.encode(inputs)['latent_dist'].sample().data
-            __import__('torchinfo').summary(self.unet_wrapper, depth=6)
-            __import__('torchinfo').summary(self.text_encoder, depth=4)
+            # __import__('torchinfo').summary(self.unet, depth=6)
+            # __import__('torchinfo').summary(self.text_encoder, depth=4)
             embeds_unaligned = self.text_encoder(
                 input_clip=text_clip,
                 input_t5=text_t5,
                 mask_clip=None,
                 mask_t5=mask_t5,
             )  # Should be (batch_size, 77, 768)
-        conditioning = self.unet_wrapper.forward_projs(embeds_unaligned)
+        conditioning = self.forward_projs(embeds_unaligned)
         # Magical scaling number (See https://github.com/huggingface/diffusers/issues/437#issuecomment-1241827515)
         latents *= 0.18215
 

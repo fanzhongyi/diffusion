@@ -4,6 +4,7 @@
 
 from typing import Dict, List, Optional
 
+import json
 import torch
 from composer.devices import DeviceGPU
 from diffusers import AutoencoderKL, DDIMScheduler, DDPMScheduler
@@ -14,9 +15,9 @@ from torchmetrics.multimodal.clip_score import CLIPScore
 from diffusion.datasets.multi_tokenizer import MultiTokenizer
 from diffusion.models.multi_text_encoder import MultiTextEncoder
 from diffusion.models.stable_diffusion_3B import StableDiffusion3B
-from diffusion.models.unet_wrapper import UNetWrapper
 from transformers import logging as hf_logging
 from torchinfo import summary
+from .unet.unet_2d_condition import UNet2DConditionModel
 
 try:
     import xformers  # type: ignore
@@ -87,12 +88,14 @@ def stable_diffusion_3B(
     )
     summary(mtext_encoder, depth=4)  # type: ignore
 
-    unet_wrapper = UNetWrapper(
-        model_name=model_name,
-        unet_model_config_path=unet_model_config_path,
-        mtext_encoder=mtext_encoder,
-    )
-    summary(unet_wrapper, depth=4)  # type: ignore
+    if unet_model_config_path is not None:
+        unet_config = json.load(open(unet_model_config_path))
+        unet = UNet2DConditionModel.from_config(unet_config)
+    else:
+        unet = UNet2DConditionModel.from_pretrained(model_name,
+                                                    subfolder='unet')
+
+    summary(unet, depth=4)  # type: ignore
 
     if encode_latents_in_fp16:
         vae = AutoencoderKL.from_pretrained(model_name,
@@ -115,7 +118,7 @@ def stable_diffusion_3B(
     )
 
     model = StableDiffusion3B(
-        unet_wrapper=unet_wrapper,
+        unet=unet,
         vae=vae,
         text_encoder=mtext_encoder,
         tokenizer=tokenizer,

@@ -55,14 +55,13 @@ class UNetWrapper(nn.Module):
         self.proj_keys = list(projs.keys())
         assert set(self.gather_order) == set(self.proj_keys)
 
-    def forward(
+    def forward_all(
         self,
         noised_latents,
         timesteps,
         embeds_unaligned: Dict[str, torch.Tensor],
         conditioning=None,
     ):
-
         if conditioning is None:
             conditioning = self.forward_projs(embeds_unaligned)
         ret = self.unet(noised_latents, timesteps, conditioning)
@@ -78,8 +77,3 @@ class UNetWrapper(nn.Module):
         encoder_hidden_states = [embeds[k] for k in self.gather_order]
         encoder_hidden_states = torch.cat(encoder_hidden_states, dim=1)
         return encoder_hidden_states
-
-    def forward_adapter(self, embeds_unaligned):
-
-        # just for consistency
-        return self.forward_projs(embeds_unaligned)
