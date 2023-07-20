@@ -1,5 +1,5 @@
 project: sd-from-scratch # Insert wandb project name
-batch_size: 2048
+batch_size: 4096
 seed: 17
 scale_schedule_ratio: 1.0
 name: pexels-3b-speed-test # Insert wandb run name
@@ -31,6 +31,7 @@ model:
   text_encoders: ${text_encoders_path}
   # tokenizer: ${tokenizer}
   unet_model_config_path: unet_config/config.json
+  prediction_type: v_prediction
   encode_latents_in_fp16: false
   fsdp: true
   val_metrics:
@@ -41,16 +42,9 @@ model:
 dataset:
   train_batch_size: ${batch_size}
   eval_batch_size: 1024 # Should be 8 per device
-
   train_dataset:
     _target_: diffusion.datasets.mix_datapipe.build_mix_dataloader
     datapipes:
-      pexels:
-        _target_: diffusion.datasets.pexels.ImgDatapipe
-        data_path: /mnt/CV_teamz/crawl_data/pexels
-        json_list: /mnt/CV_teamz/users/qiming/dataset/pexels/meta_0501+0601.json
-        filter_strategy: ~
-        weight: 0.012
       laion:
         _target_: diffusion.datasets.wds.WdsDatapipe
         data_path: /mnt/CV_550w/LAION5B-clean/afs-laion2b.json
@@ -66,13 +60,13 @@ dataset:
         data_path: /mnt/CV_550w/datasets/afs-cc-all.json
         filter_strategy: ~
         weight: 0.06
-    tokenizer: ${tokenizer}
     batch_size: ${batch_size}
     petrel_conf: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
+    # tokenizer: ${tokenizer}
     filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
-    num_workers: 2
+    num_workers: 6
     prefetch_count: 8
     shuffle: true
     drop_last: true
@@ -100,7 +94,7 @@ scheduler:
   _target_: composer.optim.MultiStepWithWarmupScheduler
   t_warmup: 10000ba
   milestones:
-    - 20000ba
+    - 100000000ba
 # logger:
 #   wandb:
 #     _target_: composer.loggers.wandb_logger.WandBLogger
@@ -127,6 +121,7 @@ trainer:
   device: gpu
   max_duration: 550000ba
   eval_interval: 550000ba
+  precision: amp_fp16
   device_train_microbatch_size: ~
   run_name: ${name}
   progress_bar: true
@@ -134,10 +129,15 @@ trainer:
   log_traces: false
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
-  save_folder: # Insert path to save folder or bucket
-  save_interval: 10000ba
+  save_folder: ./outputs/model_save_3B_mixdata_fsdp
+  save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
+  save_interval: 5000ba
   save_overwrite: true
   autoresume: false
+  # compile_config:
+  #   mode: max-autotune
   fsdp_config:
     sharding_strategy: "SHARD_GRAD_OP"
+    # sharding_strategy: FULL_SHARD
+    verbose: true
     min_params: 1e10

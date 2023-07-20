@@ -10,6 +10,7 @@ import torch
 from diffusion.models.unet.unet_2d_condition import UNet2DConditionModel
 from torchinfo import summary
 import deepspeed
+from collections import OrderedDict
 
 _DEEPSPEED_TAG = 'deepspeed'  # always tag with the same, deterministic name. We'll rename the tarball to the appropriate name.
 
@@ -17,7 +18,7 @@ ds_ckpt = '/mnt/CV_teamz/users/zhongyi/workspace/checkpoint-2/pytorch_model/'
 
 cp_ckpt = '/mnt/CV_teamz/users/zhongyi/workspace/diffusion-dgx/outputs/model_save_3B_deepspeed/deepspeed/'
 
-new_cp_dir = '/mnt/CV_teamz/users/zhongyi/workspace/composer-2/'
+new_cp_dir = '/mnt/CV_teamz/users/zhongyi/workspace/composer-2/deepspeed'
 os.makedirs(new_cp_dir, exist_ok=True)
 
 
@@ -111,7 +112,6 @@ def convert_model_states():
 
         if key == 'module':
 
-            __import__('ipdb').set_trace()
             for k in list(cp_state_dict.keys()):
                 df_k = cp2df(k)
                 if df_k is not None:
@@ -121,9 +121,14 @@ def convert_model_states():
                             'vae'):
                         print(k)
 
-        if key == 'param_shapes':
+        elif key == 'buffer_names':
+            pass
 
-            __import__('ipdb').set_trace()
+        elif key == 'optimizer':
+            pass
+
+        elif key == 'param_shapes':
+
             for k in list(cp_state_dict[0].keys()):
                 df_k = cp2df(k)
                 if df_k is not None:
@@ -133,8 +138,25 @@ def convert_model_states():
                             'vae'):
                         print(k)
 
-        elif key == 'frozen_param_fragments':
+        elif key == 'frozen_param_shapes':
+            pass
 
+        elif key == 'shared_params':
+            pass
+
+        elif key == 'frozen_param_fragments':
+            pass
+
+        elif key == 'lr_scheduler':
+            pass
+
+        elif key == 'data_sampler':
+            pass
+
+        elif key == 'random_ltd':
+            pass
+
+        elif key == 'sparse_tensor_module_names':
             pass
 
         elif key == 'skipped_steps':
@@ -151,11 +173,11 @@ def convert_model_states():
 
         elif key == 'dp_world_size':
 
-            cp_state_info[key] = ds_state_info[key]
+            assert cp_state_info[key] == ds_state_info[key]
 
         elif key == 'mp_world_size':
 
-            cp_state_info[key] = ds_state_info[key]
+            assert cp_state_info[key] == ds_state_info[key]
 
         elif key == 'ds_config':
 
@@ -177,7 +199,8 @@ def convert_model_states():
         torch.save(cp_state_info, fw)
 
 
-def convert_optim_state(pp_rank):
+def convert_optim_state(pp_rank, total_fragments):
+    print(len(total_fragments))
 
     state_name = f'zero_pp_rank_{pp_rank}_mp_rank_00_optim_states.pt'
 
@@ -190,12 +213,10 @@ def convert_optim_state(pp_rank):
     print('loaded composer deepspeed checkpoint')
 
     for key, cp_state_dict in cp_state_info.items():
-
         print(f'replace {key}')
 
         if key == 'optimizer_state_dict':
 
-            __import__('ipdb').set_trace()
             for inner_k in cp_state_dict.keys():
 
                 if inner_k == 'loss_scaler':
@@ -230,22 +251,20 @@ def convert_optim_state(pp_rank):
 
                 elif inner_k == 'param_slice_mappings':
 
-                    for k in list(cp_state_dict[0].keys()):
+                    for k in cp_state_dict[inner_k][0].keys():
                         df_k = cp2df(k)
                         if df_k is not None:
-                            cp_state_dict[0][k] = ds_state_info[key][0][df_k]
+                            # cp_state_dict[inner_k][0][k] = ds_state_info[key][inner_k][0][df_k]
+                            cp_state_dict[inner_k][0][k] = total_fragments[df_k]
                         else:
                             if not k.startswith(
                                     'text_encoder') and not k.startswith('vae'):
                                 print(k)
 
-        #########
         elif key == 'ds_config':
-
             cp_state_info[key] = ds_state_info[key]
 
         elif key == 'ds_version':
-
             pass
 
         else:
@@ -262,16 +281,42 @@ def convert_optim_state(pp_rank):
     return cp_state_info
 
 
+def collect_fragments(world_size):
+    total_fragments = OrderedDict()
+
+    ds_state_info_list = []
+    for pp_rank in range(world_size):
+
+        state_name = f'zero_pp_rank_{pp_rank}_mp_rank_00_optim_states.pt'
+
+        ds_optim_path = os.path.join(ds_ckpt, state_name)
+        ds_state_info = torch.load(ds_optim_path, map_location='cpu')
+        print('loaded diffusers deepspeed checkpoint')
+
+        total_fragments.update(ds_state_info['optimizer_state_dict']['param_slice_mappings'][0])
+        ds_state_info_list.append(ds_state_info)
+
+    return total_fragments
+
+
 def convert_all():
 
-    world_size = 2
     convert_model_states()
 
-    for r in range(world_size):
-        convert_optim_state(r)
+    world_size = 2
 
+    # read total fragment address
+    total_fragments = collect_fragments(world_size)
+
+    for r in range(world_size):
+        convert_optim_state(r, total_fragments)
+
+
+def make_tarball():
+    ...
 
 if __name__ == "__main__":
-    # test()
     # convert_model_states()
-    convert_all()
+    # convert_all()
+    make_tarball()
+
