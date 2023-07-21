@@ -66,7 +66,7 @@ dataset:
     filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 256
-    num_workers: 6
+    num_workers: 1
     prefetch_count: 8
     shuffle: true
     drop_last: true
@@ -95,15 +95,15 @@ scheduler:
   t_warmup: 10000ba
   milestones:
     - 100000000ba
-logger:
-  wandb:
-    _target_: composer.loggers.wandb_logger.WandBLogger
-    name: ${name}
-    project: ${project}
-    group: ${name}
-    host: api.wandb.ai
-    token: 30e859c562557e3cb316b5863156a37c09569611
-    mode: offline
+# logger:
+#   wandb:
+#     _target_: composer.loggers.wandb_logger.WandBLogger
+#     name: ${name}
+#     project: ${project}
+#     group: ${name}
+#     host: api.wandb.ai
+#     token: 30e859c562557e3cb316b5863156a37c09569611
+#     mode: offline
 callbacks:
   speed_monitor:
     _target_: composer.callbacks.speed_monitor.SpeedMonitor
@@ -130,10 +130,12 @@ trainer:
   log_traces: false
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
-  # load_path: '/mnt/CV_teamz/users/zhongyi/composer-2-resume/ep0-ba20-rank{rank}.pt.tar'
-  save_folder: ./outputs/model_save_3B_deepspeed
+  # load_path: /mnt/CV_teamz/users/zhongyi/outputs/target/ep0-ba5-rank{rank}.pt.tar
+  #load_path: /mnt/CV_teamz/users/zhongyi/outputs/template/ep0-ba5-rank{rank}.pt.tar
+  #load_path: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_deepspeed/ep0-ba5-rank{rank}.pt.tar
+  save_folder: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_deepspeed
   save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
-  save_interval: 5ba
+  save_interval: 5000ba
   save_overwrite: true
   autoresume: false
   deepspeed_config:
