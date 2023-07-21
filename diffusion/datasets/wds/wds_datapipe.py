@@ -44,7 +44,7 @@ def load_shards(file_path: str, template: str = '{}'):
         assert isinstance(file_path, list)
         return [template.format(ele) for ele in file_path]
     else:
-        return None
+        return []
 
 
 def load_caption(
@@ -121,9 +121,12 @@ def WdsDatapipe(
 ):
 
     input_shards = load_shards(data_path, template='{}')
-    # print(input_shards[:10], len(input_shards))
     dp = IterableWrapper(input_shards)
-    # dp = FileLister(data_path, '*.new.tar')
+
+    # input_jsons = [
+    #     tar_name.replace('/LAION5B-clean/', '/LAION5B-json/LAION5B-clean/').replace("datasets", "datasets-json/datasets").replace('.new.tar', '.json')
+    #     for tar_name in input_shards
+    # ]
 
     dp = dp.shuffle(buffer_size=shuffle_buffer_size)
 
@@ -248,4 +251,18 @@ def build_wds_dataloader(
 
 
 if __name__ == '__main__':
-    WdsDatapipe(data_path='/home/babyfan/datasets/lain2b/')
+    WdsDatapipe(
+        data_path='/mnt/CV_550w/LAION5B-clean/afs-laion2b.json',
+        tokenizer=MultiTokenizer(
+            {
+                'clip_G':
+                    '/mnt/CV_teamz/pretrained/CLIP-ViT-bigG-14-laion2B-39B-b160k/',
+                'clip_B':
+                    '/mnt/CV_teamz/pretrained/stable-diffusion-v1-4/',
+                't5_L':
+                    '/mnt/CV_teamz/pretrained/flan-t5-xxl/',
+            },
+            fast_version=True,
+        ),
+        filter_strategy='/mnt/CV_teamz/users/qiming/dataset/filter_strategy/stage2/afs_wbs_filter_strategy.json',
+    )

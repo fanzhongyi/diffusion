@@ -1,5 +1,6 @@
 '''
 copy a diffusers deepspeed model state_dict to a composer deepspeed model.
+multiprocessing version
 '''
 import os
 import tarfile
@@ -8,9 +9,11 @@ import json
 import tempfile
 import torch
 
+import multiprocessing as mp
+
 from collections import OrderedDict
 
-_DEEPSPEED_TAG = 'deepspeed'  # always tag with the same, deterministic name. We'll rename the tarball to the appropriate name.
+_DEEPSPEED_TAG = 'deepspeed'
 
 # ds_dir = '/mnt/CV_teamz/users/zhongyi/pytorch_model/'
 # cp_dir = '/mnt/CV_teamz/users/zhongyi/workspace/composer-2/'
@@ -19,10 +22,9 @@ _DEEPSPEED_TAG = 'deepspeed'  # always tag with the same, deterministic name. We
 # os.makedirs(new_cp_dir, exist_ok=True)
 
 ds_dir = '/mnt/CV_teamz/users/mucheng/code_new/AIGC-from-scratch-tmp-associate_tokenizer/output/from-scratch-11nodes-round1-4datasets-3BUnet-T5-2clips-256x256-bs4224/checkpoint-290000/pytorch_model/'
-
 cp_dir = '/mnt/CV_teamz/users/zhongyi/outputs/template/'
 
-new_cp_dir = '/mnt/CV_teamz/users/zhongyi/outputs/target/'
+new_cp_dir = '/mnt/CV_teamz/users/zhongyi/outputs/target_mp/'
 os.makedirs(new_cp_dir, exist_ok=True)
 
 
@@ -37,33 +39,6 @@ def _get_write_mode(name: str) -> str:
     if name.endswith('.tar.lzma'):
         return 'w:xz'
     raise ValueError(f'{name} does not end with a valid tarfile extension.')
-
-
-def _save_deepspeed_model(model, filename: str):
-    """Save Deepspeed model and tarball the files."""
-    write_mode = _get_write_mode(filename)
-    read_mode = 'r' + write_mode[1:]
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        model.save_checkpoint(tmpdir, _DEEPSPEED_TAG)
-
-        if os.path.exists(filename):
-            # extract to tmpdir to append below
-            # not all compression formats support direct append
-            with tarfile.open(filename, read_mode) as tar:
-                tar.extractall(tmpdir)
-
-        with tarfile.open(filename, write_mode) as tar:
-            tar.add(tmpdir, arcname='')
-
-
-def df2cp(df_keys):
-    unet_prefix = 'unet.'
-    if 'tokenizer_adapter_layer.' in df_keys:
-        return df_keys.replace('tokenizer_adapter_layer.', 'projs.clip_G.')
-    if 'tokenizer_adapter_layer_clip.' in df_keys:
-        return df_keys.replace('tokenizer_adapter_layer_clip.', 'projs.clip_B.')
-    return unet_prefix + df_keys
 
 
 def cp2df(cp_keys):
@@ -103,7 +78,6 @@ def convert_model_states(ds_dir, cp_dir, new_cp_dir):
                     if not k.startswith('text_encoder') and not k.startswith(
                             'vae'):
                         print(k)
-
         elif key == 'buffer_names':
             pass
         elif key == 'optimizer':
@@ -163,19 +137,14 @@ def convert_optim_state(
     new_cp_dir,
 ):
     print(len(total_fragments))
-
     state_name = f'zero_pp_rank_{pp_rank}_mp_rank_00_optim_states.pt'
-
     ds_state_info = ds_state_info_list[pp_rank]
-    print('loaded diffusers deepspeed checkpoint')
-
+    print('loaded diffusers deepspeed optim_state info')
     cp_optim_path = os.path.join(cp_dir, state_name)
     cp_state_info = torch.load(cp_optim_path, map_location='cpu')
-    print('loaded composer deepspeed checkpoint')
-
+    print('loaded composer deepspeed optim_state info')
     for key, cp_state_dict in cp_state_info.items():
         print(f'replace {key}')
-
         if key == 'optimizer_state_dict':
             for inner_k in cp_state_dict.keys():
                 if inner_k == 'loss_scaler':
@@ -229,113 +198,105 @@ def collect_fragments(world_size, ds_dir):
         state_name = f'zero_pp_rank_{pp_rank}_mp_rank_00_optim_states.pt'
         ds_optim_path = os.path.join(ds_dir, state_name)
         ds_state_info = torch.load(ds_optim_path, map_location='cpu')
-        print('loaded diffusers deepspeed checkpoint')
-
+        print('loaded diffusers deepspeed state info')
         total_fragments.update(
             ds_state_info['optimizer_state_dict']['param_slice_mappings'][0])
         ds_state_info_list.append(ds_state_info)
-
     return total_fragments, ds_state_info_list
 
 
-def convert_all():
+def process(total_fragments, ds_state_info_list, pp_rank, local_world_size=8):
 
-    convert_model_states(ds_dir, cp_dir, new_cp_dir)
+    filename_wo_prefix = f'ep0-ba5-rank{pp_rank}.pt.tar'
+    filename = os.path.join(cp_dir, filename_wo_prefix)
 
-    world_size = 11 * 8
+    if not os.path.exists(filename):
+        return
 
-    # read total fragment address
-    total_fragments, ds_state_info_list = collect_fragments(world_size, ds_dir)
+    write_mode = _get_write_mode(filename)
+    read_mode = 'r' + write_mode[1:]
 
-    for pp_rank in range(world_size):
-        convert_optim_state(
-            pp_rank,
-            total_fragments,
-            ds_state_info_list,
-            cp_dir,
-            new_cp_dir,
-        )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        print(tmpdir, pp_rank, filename)
 
+        if os.path.exists(filename):
+            print(f'{pp_rank=} extract {filename} to {tmpdir}')
+            with tarfile.open(filename, read_mode) as tar:
+                tar.extractall(tmpdir)
 
-def unpack_tarball():
+        print(f'{pp_rank=}', os.listdir(tmpdir))
+        # __import__('ipdb').set_trace()
 
-    world_size = 11 * 8
-    local_world_size = 8
-
-    # read total fragment address
-    total_fragments, ds_state_info_list = collect_fragments(world_size, ds_dir)
-
-    for pp_rank in range(world_size):
-
-        filename_wo_prefix = f'ep0-ba5-rank{pp_rank}.pt.tar'
-        filename = os.path.join(cp_dir, filename_wo_prefix)
-
-        if not os.path.exists(filename):
-            return
-
-        write_mode = _get_write_mode(filename)
-        read_mode = 'r' + write_mode[1:]
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            print(tmpdir, pp_rank, filename)
-
-            if os.path.exists(filename):
-                print(f'extract {filename} to {tmpdir}')
-                with tarfile.open(filename, read_mode) as tar:
-                    tar.extractall(tmpdir)
-
-            print(os.listdir(tmpdir))
-            # __import__('ipdb').set_trace()
-
-            state_name = 'mp_rank_00_model_states.pt'
-            if os.path.exists(os.path.join(tmpdir, _DEEPSPEED_TAG, state_name)):
-                convert_model_states(
-                    ds_dir,
-                    cp_dir=os.path.join(tmpdir, _DEEPSPEED_TAG),
-                    new_cp_dir=os.path.join(tmpdir, _DEEPSPEED_TAG),
-                )
-                print('convert_model_states over')
-                os.makedirs(os.path.join(cp_dir, _DEEPSPEED_TAG), exist_ok=True)
-                shutil.copyfile(
-                    os.path.join(tmpdir, _DEEPSPEED_TAG, state_name),
-                    os.path.join(cp_dir, _DEEPSPEED_TAG, state_name),
-                )
-                print(f'{pp_rank=} copy model_states over')
-                shutil.copyfile(
-                    os.path.join(tmpdir, 'composer_states.pt'),
-                    os.path.join(cp_dir, 'composer_states.pt'),
-                )
-                print(f'{pp_rank=} copy composer_states over')
-
-            if pp_rank % local_world_size == 0 and not os.path.exists(
-                    os.path.join(tmpdir, _DEEPSPEED_TAG, state_name)):
-                shutil.copyfile(
-                    os.path.join(cp_dir, _DEEPSPEED_TAG, state_name),
-                    os.path.join(tmpdir, _DEEPSPEED_TAG, state_name),
-                )
-                print(f'{pp_rank=} copy model_states to {tmpdir}')
-
-            if pp_rank % local_world_size == 0 and not os.path.exists(os.path.join(tmpdir, 'composer_states.pt')):
-                shutil.copyfile(
-                    os.path.join(cp_dir, 'composer_states.pt'),
-                    os.path.join(tmpdir, 'composer_states.pt'),
-                )
-                print(f'{pp_rank=} copy composer_states to {tmpdir}')
-
-            convert_optim_state(
-                pp_rank=pp_rank,
-                total_fragments=total_fragments,
-                ds_state_info_list=ds_state_info_list,
+        state_name = 'mp_rank_00_model_states.pt'
+        if os.path.exists(os.path.join(tmpdir, _DEEPSPEED_TAG, state_name)):
+            convert_model_states(
+                ds_dir,
                 cp_dir=os.path.join(tmpdir, _DEEPSPEED_TAG),
                 new_cp_dir=os.path.join(tmpdir, _DEEPSPEED_TAG),
             )
-            print(f'[{pp_rank}-{filename}] convert_optim_states over')
+            print('convert_model_states over')
+            os.makedirs(os.path.join(cp_dir, _DEEPSPEED_TAG), exist_ok=True)
+            shutil.copyfile(
+                os.path.join(tmpdir, _DEEPSPEED_TAG, state_name),
+                os.path.join(cp_dir, _DEEPSPEED_TAG, state_name),
+            )
+            print(f'{pp_rank=} copy model_states over')
+            shutil.copyfile(
+                os.path.join(tmpdir, 'composer_states.pt'),
+                os.path.join(cp_dir, 'composer_states.pt'),
+            )
+            print(f'{pp_rank=} copy composer_states over')
 
-            new_filename = os.path.join(new_cp_dir, filename_wo_prefix)
+        if pp_rank % local_world_size == 0 and not os.path.exists(
+                os.path.join(tmpdir, _DEEPSPEED_TAG, state_name)):
+            os.makedirs(os.path.join(cp_dir, _DEEPSPEED_TAG), exist_ok=True)
+            shutil.copyfile(
+                os.path.join(cp_dir, _DEEPSPEED_TAG, state_name),
+                os.path.join(tmpdir, _DEEPSPEED_TAG, state_name),
+            )
+            print(f'{pp_rank=} copy model_states to {tmpdir}')
 
-            with tarfile.open(new_filename, write_mode) as tar:
-                tar.add(tmpdir, arcname='')
+        if pp_rank % local_world_size == 0 and not os.path.exists(
+                os.path.join(tmpdir, 'composer_states.pt')):
+            shutil.copyfile(
+                os.path.join(cp_dir, 'composer_states.pt'),
+                os.path.join(tmpdir, 'composer_states.pt'),
+            )
+            print(f'{pp_rank=} copy composer_states to {tmpdir}')
+
+        convert_optim_state(
+            pp_rank=pp_rank,
+            total_fragments=total_fragments,
+            ds_state_info_list=ds_state_info_list,
+            cp_dir=os.path.join(tmpdir, _DEEPSPEED_TAG),
+            new_cp_dir=os.path.join(tmpdir, _DEEPSPEED_TAG),
+        )
+        print(f'[{pp_rank}-{filename}] convert_optim_states over')
+
+        new_filename = os.path.join(new_cp_dir, filename_wo_prefix)
+
+        with tarfile.open(new_filename, write_mode) as tar:
+            tar.add(tmpdir, arcname='')
+
+
+def unpack_tarball_mp():
+
+    node_count = 11
+    local_world_size = 8
+    world_size = local_world_size * node_count
+
+    # read total fragment address
+    total_fragments, ds_state_info_list = collect_fragments(world_size, ds_dir)
+
+    # taropen rank 0 first for model_states & composer_states file
+    process(total_fragments, ds_state_info_list, pp_rank=0, local_world_size=8)
+
+    # multiprocessing rank 1 - world_size , faster convert
+    pool = mp.Pool(node_count)
+    pool.starmap(process,
+             [(total_fragments, ds_state_info_list, pp_rank, local_world_size)
+              for pp_rank in range(1, world_size)])
 
 
 if __name__ == "__main__":
-    unpack_tarball()
+    unpack_tarball_mp()

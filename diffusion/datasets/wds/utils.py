@@ -37,6 +37,7 @@ def filter_fn(sample, filter_strategy=None):
 
         if width is None or height is None and not filter_strategy[
                 'filter_by_short_side']["default"]:
+            print(f"{sample['__key__']}: No height or width info found, discard.")
             return False
 
     if "long_short_ratio" in filter_strategy:

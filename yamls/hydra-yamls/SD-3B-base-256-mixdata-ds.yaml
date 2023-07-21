@@ -5,13 +5,13 @@ scale_schedule_ratio: 1.0
 name: pexels-3b-speed-test # Insert wandb run name
 eval_first: false
 
-algorithms:
-  low_precision_groupnorm:
-    attribute: unet
-    precision: amp_fp16
-  low_precision_layernorm:
-    attribute: unet
-    precision: amp_fp16
+# algorithms:
+#   low_precision_groupnorm:
+#     attribute: unet
+#     precision: amp_fp16
+#   low_precision_layernorm:
+#     attribute: unet
+#     precision: amp_fp16
 
 text_encoders_path:
   clip_G: /mnt/CV_teamz/pretrained/CLIP-ViT-bigG-14-laion2B-39B-b160k/
@@ -130,9 +130,7 @@ trainer:
   log_traces: false
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
-  # load_path: /mnt/CV_teamz/users/zhongyi/outputs/target/ep0-ba5-rank{rank}.pt.tar
-  #load_path: /mnt/CV_teamz/users/zhongyi/outputs/template/ep0-ba5-rank{rank}.pt.tar
-  #load_path: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_deepspeed/ep0-ba5-rank{rank}.pt.tar
+  load_path: /mnt/CV_teamz/users/zhongyi/outputs/target/ep0-ba5-rank{rank}.pt.tar
   save_folder: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_deepspeed
   save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
   save_interval: 5000ba
@@ -141,3 +139,8 @@ trainer:
   deepspeed_config:
     zero_optimization:
       stage: 2
+    gradient_accumulation_steps: 1
+    gradient_clipping: 1.0
+    offload_optimizer_device: none
+    offload_param_device: none
+    zero3_init_flag: false
