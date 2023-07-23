@@ -30,8 +30,6 @@ class MultiTextEncoder(nn.Module):
     ):
         super().__init__()
 
-        encoders = {}
-
         # initlization
         latent_type = torch.float16 if encode_latents_in_fp16 else torch.float
         for name, path in text_encoders.items():
@@ -50,9 +48,7 @@ class MultiTextEncoder(nn.Module):
                 assert 't5' in name.lower() or 'clip' in name.lower()
                 encoder = None  # makes pyright happy
 
-            encoders[name] = encoder
-
-        self.encoders = nn.ModuleDict(encoders)
+            self._modules[name] = encoder
 
     @torch.no_grad()
     def forward_encoders(
@@ -62,10 +58,10 @@ class MultiTextEncoder(nn.Module):
         mask_clip=None,
         mask_t5=None,
     ):
-        self.encoders.eval()
+        self.eval()
         # forward multiple encoders
         embeds_unaligned = {}
-        for name, encoder in self.encoders.items():
+        for name, encoder in self.named_children():
             if 'clip' in name.lower():
                 embeds_unaligned[name] = encoder(input_ids=input_clip,
                                                  attention_mask=mask_clip)[0]
@@ -75,6 +71,7 @@ class MultiTextEncoder(nn.Module):
 
         return embeds_unaligned
 
+    @torch.cuda.amp.autocast(dtype=torch.float32)
     def forward(
         self,
         input_clip,

@@ -130,7 +130,7 @@ trainer:
   log_traces: false
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
-  load_path: /mnt/CV_teamz/users/zhongyi/outputs/target/ep0-ba5-rank{rank}.pt.tar
+  # load_path: /mnt/CV_teamz/users/zhongyi/outputs/target/ep0-ba5-rank{rank}.pt.tar
   save_folder: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_deepspeed
   save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
   save_interval: 5000ba

@@ -14,7 +14,7 @@ from torchmetrics.multimodal.clip_score import CLIPScore
 
 from diffusion.datasets.multi_tokenizer import MultiTokenizer
 from diffusion.models.multi_text_encoder import MultiTextEncoder
-from diffusion.models.stable_diffusion_3B import StableDiffusion3B
+from diffusion.models.stable_diffusion_3B import StableDiffusion3BContext
 from transformers import logging as hf_logging
 from torchinfo import summary
 from .unet.unet_2d_condition import UNet2DConditionModel
@@ -117,11 +117,14 @@ def stable_diffusion_3B(
         prediction_type=prediction_type,
     )
 
-    model = StableDiffusion3B(
-        unet=unet,
+    model_context = StableDiffusion3BContext(
         vae=vae,
         text_encoder=mtext_encoder,
         tokenizer=tokenizer,
+        encode_latents_in_fp16=encode_latents_in_fp16,
+    )
+    model = model_context(
+        unet=unet,
         noise_scheduler=noise_scheduler,
         inference_noise_scheduler=inference_noise_scheduler,
         prediction_type=prediction_type,
@@ -130,12 +133,10 @@ def stable_diffusion_3B(
         val_guidance_scales=val_guidance_scales,
         val_seed=val_seed,
         loss_bins=loss_bins,
-        encode_latents_in_fp16=encode_latents_in_fp16,
         fsdp=fsdp,
     )
     if torch.cuda.is_available():
         model = DeviceGPU().module_to_device(model)
         if is_xformers_installed:
             model.unet.enable_xformers_memory_efficient_attention()
-            model.vae.enable_xformers_memory_efficient_attention()
     return model

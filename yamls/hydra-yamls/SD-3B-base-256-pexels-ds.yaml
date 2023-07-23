@@ -5,13 +5,13 @@ scale_schedule_ratio: 1.0
 name: pexels-3b-speed-test # Insert wandb run name
 eval_first: false
 
-algorithms:
-  low_precision_groupnorm:
-    attribute: unet
-    precision: amp_fp16
-  low_precision_layernorm:
-    attribute: unet
-    precision: amp_fp16
+# algorithms:
+#   low_precision_groupnorm:
+#     attribute: unet
+#     precision: amp_fp16
+#   low_precision_layernorm:
+#     attribute: unet
+#     precision: amp_fp16
 
 text_encoders_path:
   clip_G: /mnt/CV_teamz/pretrained/CLIP-ViT-bigG-14-laion2B-39B-b160k/
@@ -53,7 +53,7 @@ dataset:
     caption_drop_prob: 0.0
     resize_size: 256
     num_workers: 6
-    prefetch_count: 8
+    prefetch_count: 2
     shuffle: true
     drop_last: true
     seed: ${seed}
@@ -115,10 +115,10 @@ trainer:
   log_traces: false
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
-  load_path: '/mnt/CV_teamz/users/zhongyi/composer-2-resume/ep0-ba20-rank{rank}.pt.tar'
+  # load_path: '/mnt/CV_teamz/users/zhongyi/composer-2-resume/ep0-ba20-rank{rank}.pt.tar'
   save_folder: ./outputs/model_save_3B_deepspeed
   save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
-  save_interval: 20ba
+  save_interval: 2000ba
   save_overwrite: true
   autoresume: false
   deepspeed_config:

@@ -5,13 +5,13 @@ scale_schedule_ratio: 1.0
 name: pexels-3b-speed-test # Insert wandb run name
 eval_first: false
 
-algorithms:
-  low_precision_groupnorm:
-    attribute: unet
-    precision: amp_fp16
-  low_precision_layernorm:
-    attribute: unet
-    precision: amp_fp16
+# algorithms:
+#   low_precision_groupnorm:
+#     attribute: unet
+#     precision: amp_fp16
+#   low_precision_layernorm:
+#     attribute: unet
+#     precision: amp_fp16
 
 text_encoders_path:
   clip_G: /mnt/CV_teamz/pretrained/CLIP-ViT-bigG-14-laion2B-39B-b160k/
