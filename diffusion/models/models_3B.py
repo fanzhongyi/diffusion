@@ -84,7 +84,7 @@ def stable_diffusion_3B(
 
     mtext_encoder = MultiTextEncoder(
         text_encoders=text_encoders,
-        encode_latents_in_fp16=encode_latents_in_fp16,
+        encode_latents_in_fp16=False,
     )
     summary(mtext_encoder, depth=4)  # type: ignore
 
@@ -94,7 +94,6 @@ def stable_diffusion_3B(
     else:
         unet = UNet2DConditionModel.from_pretrained(model_name,
                                                     subfolder='unet')
-
     summary(unet, depth=4)  # type: ignore
 
     if encode_latents_in_fp16:

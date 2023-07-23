@@ -29,9 +29,11 @@ def StableDiffusion3BContext(
 
     # freeze text_encoder during diffusion training
     text_encoder.requires_grad_(False)
+    text_encoder.eval()
+
     vae.requires_grad_(False)
+    vae.eval()
     if encode_latents_in_fp16:
-        text_encoder.half()
         vae.half()
 
     if torch.cuda.is_available():
@@ -173,7 +175,6 @@ def StableDiffusion3BContext(
             self.text_key = text_key
             self.t5_text_key = t5_text_key
             self.t5_mask_key = t5_mask_key
-            self.encode_latents_in_fp16 = encode_latents_in_fp16
 
             # multiple projection layers
             feature_dim = unet.config.encoder_hid_dim or unet.config.cross_attention_dim  # type: ignore
@@ -217,26 +218,24 @@ def StableDiffusion3BContext(
             text_t5 = text_t5.view(-1, text_t5.shape[-1])
             mask_t5 = mask_t5.view(-1, mask_t5.shape[-1])
 
-            print('########## Input nn.Module ###########')
-            print('inputs dtype:\t', inputs.dtype)  # fp16
-            print('########## Input nn.Module End ###########')
-
+            # print('########## Input nn.Module ###########')
+            # print('inputs dtype:\t', inputs.dtype)  # fp16
             embeds_unaligned = text_encoder(
                 input_clip=text_clip,
                 input_t5=text_t5,
                 mask_clip=None,
                 mask_t5=mask_t5,
             )  # Should be (batch_size, 77, 768)
-            print('embeds_unaligned dtype:\t', embeds_unaligned['clip_G'].dtype)
-            print('########## After Text Encoder ###########')
+            # print('embeds_unaligned dtype:\t', embeds_unaligned['clip_G'].dtype)
+            # print('########## After Text Encoder ###########')
 
             with torch.cuda.amp.autocast(enabled=True, dtype=inputs.dtype):
                 conditioning = self.forward_projs(embeds_unaligned)
-                print('conditioning dtype:\t', conditioning.dtype)
+                # print('conditioning dtype:\t', conditioning.dtype)
                 conditioning = conditioning.to(inputs.dtype)
 
                 latents = vae.encode(inputs)['latent_dist'].sample().data # why latents always be fp32
-                print('latents dtype:\t', latents.dtype)
+                # print('latents dtype:\t', latents.dtype)
                 latents = latents.to(inputs.dtype)
 
             # Magical scaling number (See https://github.com/huggingface/diffusers/issues/437#issuecomment-1241827515)
@@ -264,12 +263,9 @@ def StableDiffusion3BContext(
                     f'prediction type must be one of sample, epsilon, or v_prediction. Got {self.prediction_type}'
                 )
 
-            print('unet dtype:\t', next(self.unet.parameters()).dtype)
-            print('timesteps dtype:\t', timesteps.dtype)
-            print('conditioning dtype:\t', conditioning.dtype)
-            print('noised_latents dtype:\t', noised_latents.dtype)
-            print('targets dtype:\t', targets.dtype)
-            print('########## Before Unet ###########')
+            # print('unet dtype:\t', next(self.unet.parameters()).dtype)
+            # print('conditioning dtype:\t', conditioning.dtype)
+            # print('noised_latents dtype:\t', noised_latents.dtype)
             # Forward through the model
             return self.unet(noised_latents, timesteps,
                              conditioning)['sample'], targets, timesteps

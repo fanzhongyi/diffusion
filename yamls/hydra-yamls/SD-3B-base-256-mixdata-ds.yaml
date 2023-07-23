@@ -14,8 +14,8 @@ eval_first: false
 #     precision: amp_fp16
 
 text_encoders_path:
-  clip_G: /mnt/CV_teamz/pretrained/CLIP-ViT-bigG-14-laion2B-39B-b160k/
   clip_B: /mnt/CV_teamz/pretrained/stable-diffusion-v1-4/
+  clip_G: /mnt/CV_teamz/pretrained/CLIP-ViT-bigG-14-laion2B-39B-b160k/
   t5_L: /mnt/CV_teamz/pretrained/flan-t5-xxl
 
 tokenizer:
@@ -32,7 +32,7 @@ model:
   # tokenizer: ${tokenizer}
   unet_model_config_path: unet_config/config.json
   prediction_type: v_prediction
-  encode_latents_in_fp16: false
+  encode_latents_in_fp16: true
   fsdp: false
   val_metrics:
     - _target_: torchmetrics.MeanSquaredError
@@ -92,7 +92,7 @@ optimizer:
   weight_decay: 0.01
 scheduler:
   _target_: composer.optim.MultiStepWithWarmupScheduler
-  t_warmup: 10000ba
+  t_warmup: 18ba
   milestones:
     - 100000000ba
 # logger:
@@ -131,9 +131,9 @@ trainer:
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
   # load_path: /mnt/CV_teamz/users/zhongyi/outputs/target/ep0-ba5-rank{rank}.pt.tar
-  save_folder: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_deepspeed
+  save_folder: /mnt/CV_teamz/users/zhongyi/outputs/model_save_test_composer
   save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
-  save_interval: 5000ba
+  save_interval: 2000ba
   save_overwrite: true
   autoresume: false
   deepspeed_config:

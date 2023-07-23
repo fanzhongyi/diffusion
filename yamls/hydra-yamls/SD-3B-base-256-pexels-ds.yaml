@@ -32,7 +32,7 @@ model:
   # tokenizer: ${tokenizer}
   unet_model_config_path: unet_config/config.json
   prediction_type: v_prediction
-  encode_latents_in_fp16: false
+  encode_latents_in_fp16: true
   fsdp: false
   val_metrics:
     - _target_: torchmetrics.MeanSquaredError

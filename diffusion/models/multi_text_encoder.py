@@ -24,11 +24,13 @@ class MultiTextEncoder(nn.Module):
     """
 
     def __init__(
-            self,
-            text_encoders: Dict[str, str],
-            encode_latents_in_fp16: bool = False,
+        self,
+        text_encoders: Dict[str, str],
+        encode_latents_in_fp16: bool = False,
     ):
         super().__init__()
+
+        assert not encode_latents_in_fp16, 'Current MultiTextEncoder only support fp32'
 
         # initlization
         latent_type = torch.float16 if encode_latents_in_fp16 else torch.float
