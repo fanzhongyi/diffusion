@@ -5,13 +5,16 @@ scale_schedule_ratio: 1.0
 name: pexels-3b-speed-test # Insert wandb run name
 eval_first: false
 
-# algorithms:
-#   low_precision_groupnorm:
-#     attribute: unet
-#     precision: amp_fp16
-#   low_precision_layernorm:
-#     attribute: unet
-#     precision: amp_fp16
+algorithms:
+  GradientClipping:
+    clipping_type: norm
+    clipping_threshold: 1.
+  low_precision_groupnorm:
+    attribute: unet
+    precision: amp_fp16
+  low_precision_layernorm:
+    attribute: unet
+    precision: amp_fp16
 
 text_encoders_path:
   clip_G: /mnt/CV_teamz/pretrained/CLIP-ViT-bigG-14-laion2B-39B-b160k/
@@ -91,10 +94,10 @@ optimizer:
   lr: 1.0e-4
   weight_decay: 0.01
 scheduler:
-  _target_: composer.optim.MultiStepWithWarmupScheduler
-  t_warmup: 10000ba
-  milestones:
-    - 100000000ba
+  _target_: composer.optim.LinearWithWarmupScheduler
+  t_warmup: 18ba
+  alpha_i: 1.0
+  alpha_f: 1.0
 # logger:
 #   wandb:
 #     _target_: composer.loggers.wandb_logger.WandBLogger
@@ -131,17 +134,13 @@ trainer:
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
   # load_path: /mnt/CV_teamz/users/zhongyi/outputs/target/ep0-ba5-rank{rank}.pt.tar
-  #load_path: /mnt/CV_teamz/users/zhongyi/outputs/template/ep0-ba5-rank{rank}.pt.tar
-  #load_path: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_deepspeed/ep0-ba5-rank{rank}.pt.tar
   save_folder: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_fsdp
   save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
   save_interval: 5000ba
   save_overwrite: true
   autoresume: false
-  # compile_config:
-  #   mode: max-autotune
   fsdp_config:
     sharding_strategy: "SHARD_GRAD_OP"
     # sharding_strategy: FULL_SHARD
     verbose: true
-    # min_params: 1e10
+    min_params: 1e10

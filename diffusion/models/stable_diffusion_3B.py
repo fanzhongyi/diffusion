@@ -189,6 +189,8 @@ def StableDiffusion3BContext(
                 print(
                     f'Encoder-{name} Adapter {encoder_dim=} -> {feature_dim=}')
             self.projs = nn.ModuleDict(projs)
+            for param in self.projs.parameters():
+                torch.nn.init.zeros_(param)
 
             self.gather_order = gather_order
             self.proj_keys = list(projs.keys())
@@ -200,7 +202,7 @@ def StableDiffusion3BContext(
                 self.projs._fsdp_wrap = False
                 self.unet._fsdp_wrap = True
 
-        def forward_projs(self, embeds_unaligned: Dict[str, torch.Tensor]):
+        def forward_projs(self, embeds_unaligned: Dict[str, torch.Tensor], dtype=None):
             # forward multiple projection layers
             embeds = {
                 name: proj(embeds_unaligned[name])
@@ -208,6 +210,7 @@ def StableDiffusion3BContext(
             }
             encoder_hidden_states = [embeds[k] for k in self.gather_order]
             encoder_hidden_states = torch.cat(encoder_hidden_states, dim=1)
+            encoder_hidden_states = encoder_hidden_states.to(dtype=(dtype or embeds['clip_B'].dtype))
             return encoder_hidden_states
 
         def forward(self, batch):
@@ -219,7 +222,12 @@ def StableDiffusion3BContext(
             mask_t5 = mask_t5.view(-1, mask_t5.shape[-1])
 
             # print('########## Input nn.Module ###########')
-            # print('inputs dtype:\t', inputs.dtype)  # fp16
+            # print('inputs dtype:\t', inputs.dtype)
+            # print('vae dtype:\t', next(vae.parameters()).dtype)
+            # print('encoder dtype:\t', next(text_encoder.parameters()).dtype)
+            # print('projs dtype:\t', next(self.projs.parameters()).dtype)
+            # print('unet dtype:\t', next(self.unet.parameters()).dtype)
+
             embeds_unaligned = text_encoder(
                 input_clip=text_clip,
                 input_t5=text_t5,
@@ -227,20 +235,13 @@ def StableDiffusion3BContext(
                 mask_t5=mask_t5,
             )  # Should be (batch_size, 77, 768)
             # print('embeds_unaligned dtype:\t', embeds_unaligned['clip_G'].dtype)
-            # print('########## After Text Encoder ###########')
 
-            with torch.cuda.amp.autocast(enabled=True, dtype=inputs.dtype):
+            with torch.cuda.amp.autocast(dtype=inputs.dtype):
                 conditioning = self.forward_projs(embeds_unaligned)
                 # print('conditioning dtype:\t', conditioning.dtype)
-                conditioning = conditioning.to(inputs.dtype)
-
-                latents = vae.encode(inputs)['latent_dist'].sample().data # why latents always be fp32
-                # print('latents dtype:\t', latents.dtype)
-                latents = latents.to(inputs.dtype)
-
+            latents = vae.encode(inputs)['latent_dist'].sample().data
             # Magical scaling number (See https://github.com/huggingface/diffusers/issues/437#issuecomment-1241827515)
             latents *= 0.18215
-
             # Sample the diffusion timesteps
             timesteps = torch.randint(0,
                                       len(self.noise_scheduler),
@@ -262,13 +263,15 @@ def StableDiffusion3BContext(
                 raise ValueError(
                     f'prediction type must be one of sample, epsilon, or v_prediction. Got {self.prediction_type}'
                 )
-
-            # print('unet dtype:\t', next(self.unet.parameters()).dtype)
-            # print('conditioning dtype:\t', conditioning.dtype)
-            # print('noised_latents dtype:\t', noised_latents.dtype)
+            # print('latents dtype:\t', latents.dtype)
+            # print('targets dtype:\t', targets.dtype)
             # Forward through the model
             return self.unet(noised_latents, timesteps,
                              conditioning)['sample'], targets, timesteps
+            # unet_out = self.unet(noised_latents, timesteps,
+            #                  conditioning)['sample']
+            # print('unet_out dtype:\t', unet_out.dtype)
+            # return unet_out, targets, timesteps
 
         def loss(self, outputs, batch):
             """Loss between unet output and added noise, typically mse."""

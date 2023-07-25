@@ -2,16 +2,16 @@ project: sd-3b-from-scratch # Insert wandb project name
 batch_size: 4096
 seed: 17
 scale_schedule_ratio: 1.0
-name: pexels-3b-speed-test # Insert wandb run name
+name: composer-3b-speed-test # Insert wandb run name
 eval_first: false
 
-# algorithms:
-#   low_precision_groupnorm:
-#     attribute: unet
-#     precision: amp_fp16
-#   low_precision_layernorm:
-#     attribute: unet
-#     precision: amp_fp16
+algorithms:
+  low_precision_groupnorm:
+    attribute: unet
+    precision: amp_fp16
+  low_precision_layernorm:
+    attribute: unet
+    precision: amp_fp16
 
 text_encoders_path:
   clip_G: /mnt/CV_teamz/pretrained/CLIP-ViT-bigG-14-laion2B-39B-b160k/
@@ -32,7 +32,7 @@ model:
   # tokenizer: ${tokenizer}
   unet_model_config_path: unet_config/config.json
   prediction_type: v_prediction
-  encode_latents_in_fp16: false
+  encode_latents_in_fp16: true
   fsdp: false
   val_metrics:
     - _target_: torchmetrics.MeanSquaredError
@@ -48,19 +48,22 @@ dataset:
       laion:
         _target_: diffusion.datasets.wds.WdsDatapipe
         data_path: /mnt/CV_550w/LAION5B-clean/afs-laion2b.json
+        filter_strategy: ~
         weight: 5.3
       coyo:
         _target_: diffusion.datasets.wds.WdsDatapipe
         data_path: /mnt/CV_550w/datasets/afs-coyo.json
+        filter_strategy: ~
         weight: 2.1
       cc:
         _target_: diffusion.datasets.wds.WdsDatapipe
         data_path: /mnt/CV_550w/datasets/afs-cc-all.json
+        filter_strategy: ~
         weight: 0.06
     batch_size: ${batch_size}
     petrel_conf: /mnt/CV_teamz/open_datasets/datasets/LAION-5b/config/petreloss.tmp.conf
     # tokenizer: ${tokenizer}
-    filter_strategy: /mnt/CV_teamz/users/qiming/dataset/filter_strategy/stage2/afs_wbs_filter_strategy.json
+    filter_strategy: ~
     caption_drop_prob: 0.0
     resize_size: 512
     num_workers: 1
@@ -88,10 +91,10 @@ optimizer:
   lr: 1.0e-4
   weight_decay: 0.01
 scheduler:
-  _target_: composer.optim.MultiStepWithWarmupScheduler
-  t_warmup: 10000ba
-  milestones:
-    - 100000000ba
+  _target_: composer.optim.LinearWithWarmupScheduler
+  t_warmup: 18ba
+  alpha_i: 1.0
+  alpha_f: 1.0
 # logger:
 #   wandb:
 #     _target_: composer.loggers.wandb_logger.WandBLogger
@@ -128,14 +131,14 @@ trainer:
   seed: ${seed}
   scale_schedule_ratio: ${scale_schedule_ratio}
   # load_path: /mnt/CV_teamz/users/zhongyi/outputs/target/ep0-ba5-rank{rank}.pt.tar
-  save_folder: /mnt/CV_teamz/users/zhongyi/outputs/model_save_3B_deepspeed
+  save_folder: /mnt/CV_teamz/users/zhongyi/outputs/save_ds_test_composer
   save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
-  save_interval: 5000ba
+  save_interval: 200ba
   save_overwrite: true
   autoresume: false
   deepspeed_config:
     zero_optimization:
-      stage: 2
+      stage: 3
     gradient_accumulation_steps: 1
     gradient_clipping: 1.0
     offload_optimizer_device: none

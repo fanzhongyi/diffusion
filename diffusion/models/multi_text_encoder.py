@@ -36,7 +36,6 @@ class MultiTextEncoder(nn.Module):
         latent_type = torch.float16 if encode_latents_in_fp16 else torch.float
         for name, path in text_encoders.items():
             print(f'Start Init text_encoder: {name}')
-
             # multiple encoders
             if 'clip' in name.lower():
                 encoder = CLIPTextModel.from_pretrained(
@@ -49,11 +48,11 @@ class MultiTextEncoder(nn.Module):
             else:
                 assert 't5' in name.lower() or 'clip' in name.lower()
                 encoder = None  # makes pyright happy
-
             self._modules[name] = encoder
 
+    @torch.cuda.amp.autocast(dtype=torch.float32)
     @torch.no_grad()
-    def forward_encoders(
+    def forward(
         self,
         input_clip,
         input_t5,
@@ -70,21 +69,4 @@ class MultiTextEncoder(nn.Module):
             if 't5' in name.lower():
                 embeds_unaligned[name] = encoder(input_ids=input_t5,
                                                  attention_mask=mask_t5)[0]
-
-        return embeds_unaligned
-
-    @torch.cuda.amp.autocast(dtype=torch.float32)
-    def forward(
-        self,
-        input_clip,
-        input_t5,
-        mask_clip=None,
-        mask_t5=None,
-    ):
-        embeds_unaligned = self.forward_encoders(
-            input_clip=input_clip,
-            input_t5=input_t5,
-            mask_clip=mask_clip,
-            mask_t5=mask_t5,
-        )
         return embeds_unaligned
